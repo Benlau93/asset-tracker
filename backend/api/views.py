@@ -6,7 +6,7 @@ import requests
 import pandas as pd
 import datetime
 from .pdf_extraction import bank_extraction, cpf_extraction
-from .models import CPFModel, BankModel
+from .models import CPFModel, BankModel, InvestmentModel
 
 from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer
 
@@ -37,15 +37,41 @@ class InvestmentAPIViews(APIView):
         portfolio = pd.merge(portfolio, ticker[["symbol","INVESTMENT_TYPE"]], on="symbol")
         # merge pl to get current value
         portfolio = pd.merge(portfolio, historical, on="symbol")
-        portfolio["current_value"] = portfolio["total_value_sgd"] + portfolio["pl_sgd"]
+        portfolio["VALUE"] = portfolio["total_value_sgd"] + portfolio["pl_sgd"]
 
         # get total value per investment type
-        portfolio = portfolio.groupby(["INVESTMENT_TYPE"]).sum()[["current_value"]].reset_index()
-        portfolio["date"] = datetime.date.today()
-        return Response(portfolio.to_dict(orient="records"), status=status.HTTP_200_OK)
+        portfolio = portfolio.groupby(["INVESTMENT_TYPE"]).sum()[["VALUE"]].reset_index()
+        portfolio["DATE"] = pd.to_datetime(datetime.date.today())
+
+        # add year month
+        portfolio["YEARMONTH"] = portfolio["DATE"].dt.strftime("%b %Y")
+
+        # handle data model
+        # if there are data for current year month, delete it
+        try:
+            # delete existing record
+            record = InvestmentModel.objects.filter(YEARMONTH = portfolio["YEARMONTH"].iloc[0])
+            record.delete()
+            print("Updated Existing Investment Value ...")
+        except:
+            print("Added New Investment Value ...")
 
 
-class ExtractionViews(APIView):
+        # insert to investment model
+        df_records =  portfolio.to_dict(orient="records")
+        model_instances = [InvestmentModel(
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                INVESTMENT_TYPE = record["INVESTMENT_TYPE"],
+                VALUE = record["VALUE"]
+            ) for record in df_records]
+
+        InvestmentModel.objects.bulk_create(model_instances)
+
+        return Response(status=status.HTTP_200_OK)
+
+
+class PDFExtractionViews(APIView):
 
     def get(self, request, format=None):
         cpf = cpf_extraction()

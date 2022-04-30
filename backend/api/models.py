@@ -17,6 +17,7 @@ class CPFModel(models.Model):
 
 class InvestmentModel(models.Model):
     DATE = models.DateField(blank=False)
+    YEARMONTH = models.CharField(blank=False, max_length=10)
     INVESTMENT_TYPE = models.CharField(max_length=50, blank=False)
     VALUE = models.FloatField(blank=False)
 

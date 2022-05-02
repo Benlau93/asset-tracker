@@ -13,7 +13,6 @@ from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer
 # Create your views here.
 
 class InvestmentAPIViews(APIView):
-    investment_serializer = InvestmentSerializer
 
     def get(self, request, format=None):
 

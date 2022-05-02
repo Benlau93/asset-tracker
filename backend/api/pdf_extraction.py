@@ -62,7 +62,7 @@ def bank_extraction():
         end_amount = float(pdf_text[len(pdf_text) - pdf_text[::-1].index("Balance Carried Forward") +2].replace(",",""))
 
         # add to main dataframe
-        bank = pd.concat([bank, pd.DataFrame({"DATE":[end_date],"BANK_TYPE":["END"],"VALUE":end_amount})], sort=True, ignore_index=True)
+        bank = pd.concat([bank, pd.DataFrame({"DATE":[end_date],"YEARMONTH":[end_date.strftime("%b %Y")],"BANK_TYPE":["END"],"VALUE":end_amount})], sort=True, ignore_index=True)
         
         # loop through all statement and record relavant entry
         for i in range(pdf_size):
@@ -98,7 +98,7 @@ def bank_extraction():
             
             # format and append
             date = pdf_text[i -2]
-            date = pd.to_datetime(date+f" {year}").date()
+            date = pd.to_datetime(date+f" {year}", format="%d %b %Y").date()
             yearmonth = date.strftime("%b %Y")
 
             # append to main dataframe
@@ -106,7 +106,7 @@ def bank_extraction():
             bank = pd.concat([bank, _], sort=True, ignore_index=True)
 
     # write to hist
-    with open(os.path.join(os.path.split(STATEMENT_DIR)[0],"historical-bank.txt"),"w") as f:
+    with open(os.path.join(os.path.split(STATEMENT_DIR)[0],"historical-bank.txt"),"a") as f:
         f.writelines(filename)
 
     if len(bank) == 0:
@@ -151,7 +151,7 @@ def cpf_extraction():
                 filename +=  f + "\n"
 
     # format cpf
-    cpf["DATE"] = pd.to_datetime(cpf["DATE"], format = "%d %b %Y")
+    cpf["DATE"] = pd.to_datetime(cpf["DATE"])
     cpf["YEARMONTH"] = cpf["DATE"].dt.strftime("%b %Y")
 
     for acc in accounts:
@@ -184,7 +184,7 @@ def cpf_extraction():
     cpf["ID"] = cpf.index
 
     # write to historical text
-    with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"w") as f:
+    with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"a") as f:
         f.writelines(filename)
 
     return cpf

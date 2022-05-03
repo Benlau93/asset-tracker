@@ -34,4 +34,5 @@ venv.bak/
 .json
 .pdf
 pdf
-./backend/pdf
+./backend/pdf/cpf
+./backend/pdf/estatement

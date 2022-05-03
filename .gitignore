@@ -34,3 +34,4 @@ venv.bak/
 .json
 .pdf
 pdf
+./backend/pdf

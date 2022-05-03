@@ -1,4 +1,5 @@
 from re import L
+from itsdangerous import Serializer
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
@@ -114,3 +115,29 @@ class PDFExtractionViews(APIView):
             CPFModel.objects.bulk_create(model_instances)
 
         return Response(status = status.HTTP_200_OK)
+
+class CPFView(APIView):
+    cpf_serializer = CPFSerialzier
+
+    def get(self, request, format=None):
+        data = CPFModel.objects.all()
+        serializer = self.cpf_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class InvestmentView(APIView):
+    investment_serialzier = InvestmentSerializer
+
+    def get(self, request, format=None):
+        data = InvestmentModel.objects.all()
+        serializer = self.investment_serialzier(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BankView(APIView):
+    bank_serializer = BankSerializer
+
+    def get(self, request, format=None):
+        data = BankModel.objects.all()
+        serializer = self.bank_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

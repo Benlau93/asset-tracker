@@ -105,13 +105,13 @@ def bank_extraction():
             _ = pd.DataFrame({"DATE":[date],"YEARMONTH":[yearmonth],"BANK_TYPE":[BANK_TYPE],"VALUE":[value]})
             bank = pd.concat([bank, _], sort=True, ignore_index=True)
 
-    # write to hist
-    with open(os.path.join(os.path.split(STATEMENT_DIR)[0],"historical-bank.txt"),"a") as f:
-        f.writelines(filename)
-
     if len(bank) == 0:
         return 0
     else:
+        # write to hist
+        with open(os.path.join(os.path.split(STATEMENT_DIR)[0],"historical-bank.txt"),"a") as f:
+            f.writelines(filename)
+
         return bank
 
 def cpf_extraction():
@@ -128,63 +128,63 @@ def cpf_extraction():
     accounts = ["OA","SA","MA"]
     DIR_FILE = os.listdir(CPF_DIR)
 
-    # check if there is new transaction
-    if len(hist) == len(DIR_FILE):
+    # if file is the same, no further processing needed
+    if sorted(DIR_FILE) == sorted(hist):
         return 0
 
-    # read all cpf transaction
-    cpf = pd.DataFrame()
+    else:
 
-    # loop all transaction history and add to dataframe
-    for f in DIR_FILE:
-        if f.endswith("pdf"):
+        # read all cpf transaction
+        cpf = pd.DataFrame()
+
+        # loop all transaction history and add to dataframe
+        for f in DIR_FILE:
+
+            # record filename
+            filename += f  + "\n"
+            
+            # read cpf pdf
             _ = tabula.read_pdf(os.path.join(CPF_DIR,f), stream=True, pages=1)[0]
             _.columns = ["DATE","CODE","YEAR","REF","OA","SA","MA"]
-            _ = _.drop(["YEAR","REF"], axis=1)
-
+            _ = _.drop(["YEAR","REF"], axis=1) # drop unwanted columns
 
             # add to main dataframe
             cpf = cpf.append(_, sort=True, ignore_index=True)
 
-            if f not in hist:
-                # record in historical txt
-                filename +=  f + "\n"
+        # format cpf
+        cpf["DATE"] = pd.to_datetime(cpf["DATE"])
+        cpf["YEARMONTH"] = cpf["DATE"].dt.strftime("%b %Y")
 
-    # format cpf
-    cpf["DATE"] = pd.to_datetime(cpf["DATE"])
-    cpf["YEARMONTH"] = cpf["DATE"].dt.strftime("%b %Y")
+        for acc in accounts:
+            cpf[acc] = cpf[acc].str.replace(",","").astype(np.float32)
+            cpf[acc] = cpf[acc].map(lambda x: np.nan if x==0 else x)
 
-    for acc in accounts:
-        cpf[acc] = cpf[acc].str.replace(",","").astype(np.float32)
-        cpf[acc] = cpf[acc].map(lambda x: np.nan if x==0 else x)
+        cpf = cpf.sort_values(["DATE"]).reset_index(drop=True)
 
-    cpf = cpf.sort_values(["DATE"]).reset_index(drop=True)
+        # get initial balance
+        cpf.loc[0,"CODE"] = "INITAL"
+        cpf = cpf[cpf["CODE"]!="BAL"].copy()
 
-    # get initial balance
-    cpf.loc[0,"CODE"] = "INITAL"
-    cpf = cpf[cpf["CODE"]!="BAL"].copy()
+        # get BAL per month
+        bal = cpf.sort_values("DATE")[["OA","SA","MA"]].cumsum()
+        bal = pd.merge(cpf[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
+        bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
+        bal = bal.fillna(method="ffill")
+        bal = bal.groupby("YEARMONTH").tail(1)
+        bal["CODE"] = "BAL"
 
-    # get BAL per month
-    bal = cpf.sort_values("DATE")[["OA","SA","MA"]].cumsum()
-    bal = pd.merge(cpf[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
-    bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
-    bal = bal.fillna(method="ffill")
-    bal = bal.groupby("YEARMONTH").tail(1)
-    bal["CODE"] = "BAL"
+        # add to main cpf dataframe
+        cpf = pd.concat([cpf,bal], sort=True, ignore_index=True)
+        cpf = cpf.sort_values(["DATE"]).reset_index(drop=True)
+        
+        # fillna
+        cpf[["OA","SA","MA"]] = cpf[["OA","SA","MA"]].fillna(0)
 
+        # set primary id
+        cpf["ID"] = cpf.index   
 
-    # add to main cpf dataframe
-    cpf = pd.concat([cpf,bal], sort=True, ignore_index=True)
-    cpf = cpf.sort_values(["DATE"]).reset_index(drop=True)
-    
-    # fillna
-    cpf[["OA","SA","MA"]] = cpf[["OA","SA","MA"]].fillna(0)
+        # write to historical text
+        with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"w") as f:
+            f.writelines(filename)
 
-    # set primary id
-    cpf["ID"] = cpf.index
-
-    # write to historical text
-    with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"a") as f:
-        f.writelines(filename)
-
-    return cpf
+        return cpf

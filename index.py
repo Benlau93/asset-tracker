@@ -46,20 +46,20 @@ def load_data():
 
     # combine to get df
     bank_ = bank[bank["BANK_TYPE"]=="END"][["DATE","YEARMONTH","VALUE"]].copy()
-    bank_["TYPE"] = "Savings"
+    bank_["Asset"] = "Savings"
 
     cpf_ = cpf[cpf["CODE"]=="BAL"][["DATE","YEARMONTH","OA","SA","MA"]].copy()
     cpf_["VALUE"] = cpf_["OA"] + cpf_["MA"] + cpf["SA"]
     cpf_ = cpf_.drop(["OA","MA","SA"], axis=1)
-    cpf_["TYPE"] = "CPF"
+    cpf_["Asset"] = "CPF"
 
     investment_ = investment.groupby(["DATE","YEARMONTH"]).sum()[["VALUE"]].reset_index()
-    investment_["TYPE"] = "Investment"
+    investment_["Asset"] = "Investment"
 
     df = pd.concat([bank_, cpf_, investment_], sort=True, ignore_index=True)
 
     # drop yearmonth that is not complete
-    yearmonth = df[df["TYPE"]=="Savings"]["YEARMONTH"].unique()
+    yearmonth = df[df["Asset"]=="Savings"]["YEARMONTH"].unique()
     df = df[df["YEARMONTH"].isin(yearmonth)].copy()
 
     return df.to_dict(orient="records"), bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records")

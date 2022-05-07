@@ -49,9 +49,12 @@ def load_data():
     bank_["Asset"] = "Savings"
 
     cpf_ = cpf[cpf["CODE"]=="BAL"][["DATE","YEARMONTH","OA","SA","MA"]].copy()
-    cpf_["VALUE"] = cpf_["OA"] + cpf_["MA"] + cpf["SA"]
-    cpf_ = cpf_.drop(["OA","MA","SA"], axis=1)
-    cpf_["Asset"] = "CPF"
+    # cpf_["VALUE"] = cpf_["OA"] + cpf_["MA"] + cpf["SA"]
+    # cpf_ = cpf_.drop(["OA","MA","SA"], axis=1)
+    # cpf_["Asset"] = "CPF"
+    cpf_ = cpf_.set_index(["DATE","YEARMONTH"]).stack().reset_index()
+    cpf_.columns = ["DATE","YEARMONTH","Asset","VALUE"]
+    cpf_["Asset"] = cpf_["Asset"].map(lambda x: "CPF - " + x)
 
     investment_ = investment.groupby(["DATE","YEARMONTH"]).sum()[["VALUE"]].reset_index()
     investment_["Asset"] = "Investment"

@@ -22,7 +22,7 @@ def generate_indicator(df):
     main_fig.add_trace(
         go.Indicator(mode="number",
                     value = main_kpi,
-                    title = "Current Total Asset Value",
+                    title = "Total Asset Value",
                     number = dict(valueformat="$,.0f"))
     )
 
@@ -31,40 +31,49 @@ def generate_indicator(df):
         template = TEMPLATE
     )
 
-    # get current liquid value
-    liquid_kpi = df[df["Asset"]!="CPF"]["VALUE"].sum()
+    return main_fig
+
+def generate_sub_indicator(df, asset):
+
+    # add liquidity
+    df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
+
+    # calculate value and % 
+    total_value = df["VALUE"].sum()
+
+    filtered_value = df[df["Liquidity"]==asset]["VALUE"].sum()
+    per = filtered_value / total_value
     
-    liquid_fig = go.Figure()
-    liquid_fig.add_trace(
+    # value figure
+    value_fig = go.Figure()
+    value_fig.add_trace(
         go.Indicator(mode="number",
-                    value = liquid_kpi,
-                    title = "Liquid Asset Value",
+                    value=filtered_value,
+                    title = f"Total {asset} Value",
                     number = dict(valueformat="$,.0f"))
     )
 
-    liquid_fig.update_layout(
+    value_fig.update_layout(
         height = 250,
         template = TEMPLATE
     )
 
-    # get % liquid
-    liquid_per = liquid_kpi / main_kpi
-    
-    liquid_per_fig = go.Figure()
-    liquid_per_fig.add_trace(
+    # % indicator
+    per_fig = go.Figure()
+    per_fig.add_trace(
         go.Indicator(mode="number",
-                    value = liquid_per,
-                    title = "% Liquidity",
-                    number = dict(valueformat=".01%"))
+                    value = per,
+                    title = "% Total Value",
+                    number = dict(valueformat=".01%")
+        )
     )
 
-    liquid_per_fig.update_layout(
+    per_fig.update_layout(
         height = 250,
         template = TEMPLATE
     )
 
-
-    return main_fig, liquid_fig, liquid_per_fig
+    return value_fig, per_fig
 
 def generate_pie(df):
 
@@ -115,33 +124,46 @@ def generate_area(df):
 layout = html.Div([
     dbc.Container([
         dbc.Row([
+            dbc.Col([dcc.Graph(id="main-kpi")], width = 3),
+            dbc.Col([dcc.Graph(id="debt-kpi")], width = 3),
             dbc.Col([
-                dcc.Graph(id="main-kpi")
-            ], width = 10)
+                    html.H6("Select Asset Class:"),
+                    dbc.RadioItems(
+                        id="radios",
+                        className="btn-group",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-info",
+                        labelCheckedClassName="active",
+                        options=[
+                            {"label": "Liquid", "value": "Liquid"},
+                            {"label": "non-Liquid", "value": "non-Liquid"}
+                        ],
+                        value="Liquid")
+            ], width = 3, align="center"),
         ], justify="center"),
+        dbc.Row([
+            dbc.Col([dcc.Graph(id="value-kpi")], width = 5),
+            dbc.Col([dcc.Graph(id="per-kpi")], width=5)
+        ], justify = "center"),
         dbc.Row([
             dbc.Col([dcc.Graph(id="area-chart")], width={"size":8}),
             dbc.Col([dcc.Graph(id="pie-chart")], width = {"size":4})
-        ]),
-        dbc.Row([
-            dbc.Col([dcc.Graph(id="liquid-kpi")], width = {"size":3}),
-            dbc.Col([dcc.Graph(id="liquid-per-kpi")], width = {"size":3}),
-            dbc.Col([dbc.Card(html.Div(), style={"background-color":"green"})])
-        ], align="justify" )
+        ])
     ])
 ])
 
 
 @app.callback(
     Output(component_id="main-kpi",component_property="figure"),
-    Output(component_id="liquid-kpi",component_property="figure"),
-    Output(component_id="liquid-per-kpi",component_property="figure"),
+    Output(component_id="debt-kpi",component_property="figure"),
+    Output(component_id="value-kpi",component_property="figure"),
+    Output(component_id="per-kpi",component_property="figure"),
     Output(component_id="pie-chart",component_property="figure"),
     Output(component_id="area-chart",component_property="figure"),
-    Input(component_id="url", component_property="pathname"),
+    Input(component_id="radios", component_property="value"),
     State(component_id="df-store", component_property="data")
 )
-def update_graph(_,df):
+def update_graph(asset,df):
 
     # get latest yearmonth
     df = pd.DataFrame(df)
@@ -149,8 +171,9 @@ def update_graph(_,df):
     df_ = df[df["YEARMONTH"]==latest_yearmonth].copy()
 
     # generate charts
-    main_fig, liquid_fig, liquid_per_fig = generate_indicator(df_)
+    main_fig = generate_indicator(df_)
+    value_fig, per_fig = generate_sub_indicator(df_, asset)
     pie_fig = generate_pie(df_)
     area_fig = generate_area(df)
 
-    return main_fig, liquid_fig, liquid_per_fig, pie_fig, area_fig
+    return main_fig, main_fig, value_fig, per_fig, pie_fig, area_fig

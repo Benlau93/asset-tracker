@@ -3,7 +3,7 @@ from dash import html
 from dash import dcc
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-import plotly.express as px
+from plotly.subplots import make_subplots
 import pandas as pd
 from dash.dependencies import Input, Output, State
 from app import app
@@ -34,9 +34,6 @@ def generate_indicator(df):
     return main_fig
 
 def generate_sub_indicator(df, asset):
-
-    # add liquidity
-    df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
 
     # calculate value and % 
     total_value = df["VALUE"].sum()
@@ -78,54 +75,57 @@ def generate_sub_indicator(df, asset):
 def generate_pie(df):
 
     pie_fig = go.Figure()
-    pie_fig.add_trace(
-        go.Pie(labels = df["Asset"], values = df["VALUE"], hole =0.5)
-    )
-    
 
-    pie_fig.update_layout(title = "Distribution by Asset",
+    pie_fig.add_trace(
+        go.Pie(labels = df["Asset"], values = df["VALUE"], textinfo = "label+percent", hovertemplate = "%{label}: %{value:$,.02f}", name="Asset Class")
+    )
+    pie_fig.update_layout(title = "Distribution by Asset Class",
                         showlegend=False,
                         template=TEMPLATE)
+
+
 
     return pie_fig
 
 
-def generate_area(df):
+def generate_line(df):
 
-    # label liquid or non-liquid
-    df["Liquidity"] = df["Asset"].map(lambda x: "Liquid" if x!="CPF" else "non-Liquid")
-    df = df.groupby(["DATE","Liquidity"]).sum()[["VALUE"]].reset_index()
+    # sum value
+    df = df.sort_values("DATE").groupby("DATE").sum()[["VALUE"]].reset_index()
 
-    area_fig = go.Figure()
+    # trend of asset value
+    line_fig = make_subplots(rows=2, cols = 1, subplot_titles = ["Asset Trends","% Change Trends"], row_heights=[0.7,0.3])
 
-    # non-lid
-    non_liq = df[df["Liquidity"]=="non-Liquid"].copy()
+    line_fig.add_trace(
+        go.Scatter(x=df["DATE"], y = df["VALUE"], mode="lines+markers+text", name = "Asset"), row=1, col=1
+    )
+    line_fig.update_xaxes(row=1,col=1,showgrid=False, visible=False)
+    line_fig.update_yaxes(row=1,col=1, tickformat = "$,.0f", showgrid=False)
 
-    area_fig.add_trace(
-        go.Scatter(x=non_liq["DATE"], y = non_liq["VALUE"], 
-         line=dict(width=0.5, color='red') , mode="lines+markers", stackgroup="one", name = "non-Liquid")
+    # percentage change
+    df["CHANGE"] = df["VALUE"].shift(1)
+    df["CHANGE"] = (df["VALUE"] - df["CHANGE"]) / df["CHANGE"]
+
+    line_fig.add_trace(
+        go.Scatter(x=df["DATE"], y = df["CHANGE"], mode="lines+markers", name = "% Change", line=dict(dash="dash", color="#3A3A38")),row=2, col=1
     )
 
-    # liq
-    liq = df[df["Liquidity"]=="Liquid"].copy()
-    area_fig.add_trace(
-        go.Scatter(x=liq["DATE"], y = liq["VALUE"], 
-        line=dict(width=0.5, color='green'), mode="lines+markers", stackgroup="one", name = "Liquid")
-    )
+    line_fig.update_xaxes(row=2,col=1,showgrid=False)
+    line_fig.update_yaxes(row=2,col=1, tickformat = ".0%", zeroline=True, zerolinecolor="red", zerolinewidth=0.5)
 
-    area_fig.update_layout(title="Total Asset Trends",
+    line_fig.update_layout(
                             showlegend=False,
                             template = TEMPLATE)
 
-    return area_fig
+    return line_fig
 
 
 
 layout = html.Div([
     dbc.Container([
         dbc.Row([
-            dbc.Col([dcc.Graph(id="main-kpi")], width = 3),
-            dbc.Col([dcc.Graph(id="debt-kpi")], width = 3),
+            dbc.Col([dcc.Graph(id="main-kpi")], width = 4),
+            dbc.Col([dcc.Graph(id="debt-kpi")], width = 4),
             dbc.Col([
                     html.H6("Select Asset Class:"),
                     dbc.RadioItems(
@@ -142,11 +142,14 @@ layout = html.Div([
             ], width = 3, align="center"),
         ], justify="center"),
         dbc.Row([
+            dbc.Card(html.H3(id="info", className="text-center text-light bg-dark"), body=True, color="dark")
+        ]),
+        dbc.Row([
             dbc.Col([dcc.Graph(id="value-kpi")], width = 5),
             dbc.Col([dcc.Graph(id="per-kpi")], width=5)
         ], justify = "center"),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="area-chart")], width={"size":8}),
+            dbc.Col([dcc.Graph(id="line-chart")], width={"size":8}),
             dbc.Col([dcc.Graph(id="pie-chart")], width = {"size":4})
         ])
     ])
@@ -156,24 +159,33 @@ layout = html.Div([
 @app.callback(
     Output(component_id="main-kpi",component_property="figure"),
     Output(component_id="debt-kpi",component_property="figure"),
+    Output(component_id="info",component_property="children"),
     Output(component_id="value-kpi",component_property="figure"),
     Output(component_id="per-kpi",component_property="figure"),
     Output(component_id="pie-chart",component_property="figure"),
-    Output(component_id="area-chart",component_property="figure"),
+    Output(component_id="line-chart",component_property="figure"),
     Input(component_id="radios", component_property="value"),
     State(component_id="df-store", component_property="data")
 )
 def update_graph(asset,df):
 
-    # get latest yearmonth
+    # convert to dataframe
     df = pd.DataFrame(df)
+    # add liquidity
+    df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
+    
+    # get latest yearmonth df
     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
-    df_ = df[df["YEARMONTH"]==latest_yearmonth].copy()
+    df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
+
+
+    
+
 
     # generate charts
-    main_fig = generate_indicator(df_)
-    value_fig, per_fig = generate_sub_indicator(df_, asset)
-    pie_fig = generate_pie(df_)
-    area_fig = generate_area(df)
+    main_fig = generate_indicator(df_latest)
+    value_fig, per_fig = generate_sub_indicator(df_latest, asset)
+    pie_fig = generate_pie(df_latest[df_latest["Liquidity"]==asset].copy())
+    line_fig = generate_line(df[df["Liquidity"]==asset].copy())
 
-    return main_fig, main_fig, value_fig, per_fig, pie_fig, area_fig
+    return main_fig, main_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig

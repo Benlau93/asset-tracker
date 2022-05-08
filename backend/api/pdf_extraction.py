@@ -146,7 +146,7 @@ def cpf_extraction():
             # read cpf pdf
             _ = tabula.read_pdf(os.path.join(CPF_DIR,f), stream=True, pages=1)[0]
             _.columns = ["DATE","CODE","YEAR","REF","OA","SA","MA"]
-            _ = _.drop(["YEAR","REF"], axis=1) # drop unwanted columns
+            _ = _.drop(["YEAR"], axis=1) # drop unwanted columns
 
             # add to main dataframe
             cpf = cpf.append(_, sort=True, ignore_index=True)

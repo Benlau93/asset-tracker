@@ -7,6 +7,7 @@ from apps import main
 from datetime import date
 import requests
 import pandas as pd
+import os
 
 
 # building the navigation bar
@@ -49,9 +50,6 @@ def load_data():
     bank_["Asset"] = "Savings"
 
     cpf_ = cpf[cpf["CODE"]=="BAL"][["DATE","YEARMONTH","OA","SA","MA"]].copy()
-    # cpf_["VALUE"] = cpf_["OA"] + cpf_["MA"] + cpf["SA"]
-    # cpf_ = cpf_.drop(["OA","MA","SA"], axis=1)
-    # cpf_["Asset"] = "CPF"
     cpf_ = cpf_.set_index(["DATE","YEARMONTH"]).stack().reset_index()
     cpf_.columns = ["DATE","YEARMONTH","Asset","VALUE"]
     cpf_["Asset"] = cpf_["Asset"].map(lambda x: "CPF - " + x)
@@ -64,6 +62,10 @@ def load_data():
     # drop yearmonth that is not complete
     yearmonth = df[df["Asset"]=="Savings"]["YEARMONTH"].unique()
     df = df[df["YEARMONTH"].isin(yearmonth)].copy()
+
+    # load csv
+    DEBT_DIR = r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf"
+    # debt = pd.read_csv(os.path.join(DEBT_DIR,"debt.csv"))
 
     return df.to_dict(orient="records"), bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records")
 

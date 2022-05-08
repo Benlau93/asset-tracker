@@ -6,6 +6,7 @@ class CPFModel(models.Model):
     DATE = models.DateField(blank=False)
     YEARMONTH = models.CharField(blank=False, max_length=10)
     CODE = models.CharField(max_length=10)
+    REF = models.CharField(max_length=10)
     OA = models.FloatField()
     SA = models.FloatField()
     MA = models.FloatField()

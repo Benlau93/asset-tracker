@@ -107,6 +107,7 @@ class PDFExtractionViews(APIView):
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 CODE = record["CODE"],
+                REF = record["REF"],
                 OA = record["OA"],
                 SA = record["SA"],
                 MA = record["MA"]

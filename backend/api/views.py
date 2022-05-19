@@ -7,9 +7,9 @@ import requests
 import pandas as pd
 import datetime
 from .pdf_extraction import bank_extraction, cpf_extraction
-from .models import CPFModel, BankModel, InvestmentModel
+from .models import CPFModel, BankModel, InvestmentModel, DebtModel
 
-from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer
+from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer
 
 # Create your views here.
 

@@ -142,3 +142,33 @@ class BankView(APIView):
         data = BankModel.objects.all()
         serializer = self.bank_serializer(data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class DebtView(APIView): # currently only works for 1 debt
+    debt_serializer = DebtSerializer
+
+    def get(self, request, format=None):
+        data = DebtModel.objects.all()
+        serializer = self.debt_serializer(data, many=True)
+
+        # check if debt is updated
+        current = datetime.date.today().strftime("%b %Y")
+        df = pd.DataFrame.from_dict(serializer.data)
+        if len(df[df["YEARMONTH"]==current]) > 0:
+            # debt is updated, return dataframe
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        else:
+            # update debt model
+            df["DATE"] = pd.to_datetime(df["DATE"])
+            current_max_date = df["DATE"].max()
+            max_yearmonth = current_max_date.strftime("%b %Y")
+
+            # add new entry
+            debt_new = pd.DataFrame()
+
+            # loop through by month till current month
+            while max_yearmonth != current:
+                _ = df.sort_values("DATE")
+                pass
+
+

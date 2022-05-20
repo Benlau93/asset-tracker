@@ -24,9 +24,10 @@ class BankModel(models.Model):
     VALUE = models.FloatField(blank=False)
 
 class DebtModel(models.Model):
-    YEARMONTH = models.DateField(blank=False)
-    LOAN = models.CharField(blank=False, max_length=50)
-    LOAN_VALUE = models.FloatField(blank=False)
+    DATE = models.DateField(blank=False)
+    YEARMONTH = models.CharField(blank=False, max_length=10)
+    DEBT_TYPE = models.CharField(blank=False, max_length=50)
+    DEBT_VALUE = models.FloatField(blank=False)
     INTEREST_RATE = models.FloatField(blank=False)
     INTEREST_COMPOUND = models.CharField(blank=False, max_length=20)
     REPAYMENT = models.FloatField(blank=False)

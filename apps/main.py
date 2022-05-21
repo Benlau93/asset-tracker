@@ -33,6 +33,26 @@ def generate_indicator(df):
 
     return main_fig
 
+# debt kpi
+def generate_debt_indicator(df):
+    # get current debt value
+    debt_kpi = df["REMAINING_VALUE"].iloc[0]
+
+    debt_fig = go.Figure()
+    debt_fig.add_trace(
+        go.Indicator(mode="number",
+                    value = debt_kpi,
+                    title = "Total Debt Value",
+                    number = dict(valueformat="$,.0f"))
+    )
+
+    debt_fig.update_layout(
+        height = 250,
+        template = TEMPLATE
+    )
+
+    return debt_fig
+
 def generate_sub_indicator(df, asset):
 
     # calculate value and % 
@@ -165,9 +185,10 @@ layout = html.Div([
     Output(component_id="pie-chart",component_property="figure"),
     Output(component_id="line-chart",component_property="figure"),
     Input(component_id="radios", component_property="value"),
-    State(component_id="df-store", component_property="data")
+    State(component_id="df-store", component_property="data"),
+    State(component_id="debt-store", component_property="data")
 )
-def update_graph(asset,df):
+def update_graph(asset,df, debt):
 
     # convert to dataframe
     df = pd.DataFrame(df)
@@ -177,15 +198,14 @@ def update_graph(asset,df):
     # get latest yearmonth df
     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
-
-
-    
+    debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
 
 
     # generate charts
     main_fig = generate_indicator(df_latest)
+    debt_fig = generate_debt_indicator(debt_latest)
     value_fig, per_fig = generate_sub_indicator(df_latest, asset)
     pie_fig = generate_pie(df_latest[df_latest["Liquidity"]==asset].copy())
     line_fig = generate_line(df[df["Liquidity"]==asset].copy())
 
-    return main_fig, main_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig
+    return main_fig, debt_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig

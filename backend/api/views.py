@@ -6,7 +6,7 @@ from rest_framework.response import Response
 import requests
 import pandas as pd
 import datetime
-from dateutil import relativedelta
+from dateutil.relativedelta import relativedelta
 from .pdf_extraction import bank_extraction, cpf_extraction
 from .models import CPFModel, BankModel, InvestmentModel, DebtModel
 
@@ -152,7 +152,8 @@ class DebtView(APIView): # currently only works for 1 debt
         serializer = self.debt_serializer(data, many=True)
 
         # check if debt is updated
-        current = (datetime.date.today() - relativedelta(months=1)).strftime("%b %Y")
+        current = datetime.date.today() - relativedelta(months=1)
+        current = current.strftime("%b %Y")
         df = pd.DataFrame.from_dict(serializer.data)
         if len(df[df["YEARMONTH"]==current]) > 0:
             # debt is updated, return dataframe
@@ -192,6 +193,7 @@ class DebtView(APIView): # currently only works for 1 debt
                 new_debt["REMAINING_VALUE"] = new_debt["DEBT_VALUE"] + new_debt["INTEREST"] - new_debt["REPAYMENT"]
 
                 # add to df to be store in db
+                df = df.append(new_debt, sort=True, ignore_index=True)
                 debt_new = debt_new.append(new_debt, sort=True, ignore_index=True)
 
             # store in db

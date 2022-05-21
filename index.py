@@ -63,11 +63,13 @@ def load_data():
     yearmonth = df[df["Asset"]=="Savings"]["YEARMONTH"].unique()
     df = df[df["YEARMONTH"].isin(yearmonth)].copy()
 
-    # load csv
-    DEBT_DIR = r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf"
-    # debt = pd.read_csv(os.path.join(DEBT_DIR,"debt.csv"))
+    # load debt
+    debt = requests.get("http://127.0.0.1:8001/api/debt")
+    debt = pd.DataFrame.from_dict(debt.json())
+    debt["DATE"] = pd.to_datetime(debt["DATE"], format="%Y-%m-%d")
 
-    return df.to_dict(orient="records"), bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records")
+
+    return df.to_dict(orient="records"), debt.to_dict(orient = "records"),bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records")
 
 
 
@@ -79,6 +81,7 @@ def serve_layout():
 
         # data store
         dcc.Store(id="df-store"),
+        dcc.Store(id="debt-store"),
         dcc.Store(id="bank-store"),
         dcc.Store(id="cpf-store"),
         dcc.Store(id="investment-store")
@@ -89,6 +92,7 @@ app.layout = serve_layout
 @app.callback(
     Output(component_id='page-content', component_property='children'),
     Output(component_id='df-store', component_property='data'),
+    Output(component_id='debt-store', component_property='data'),
     Output(component_id='bank-store', component_property='data'),
     Output(component_id='cpf-store', component_property='data'),
     Output(component_id='investment-store', component_property='data'),
@@ -99,9 +103,9 @@ def display_page(pathame):
 
     # load data
     print("RETRIEVE DATA FROM BACKEND API")
-    df, bank, cpf, investment = load_data()
+    df, debt, bank, cpf, investment = load_data()
 
-    return layout, df, bank, cpf, investment
+    return layout, df, debt, bank, cpf, investment
 
 # start server
 if __name__ == '__main__':

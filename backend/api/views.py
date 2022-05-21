@@ -152,7 +152,7 @@ class DebtView(APIView): # currently only works for 1 debt
         serializer = self.debt_serializer(data, many=True)
 
         # check if debt is updated
-        current = datetime.date.today().strftime("%b %Y")
+        current = (datetime.date.today() - relativedelta(months=1)).strftime("%b %Y")
         df = pd.DataFrame.from_dict(serializer.data)
         if len(df[df["YEARMONTH"]==current]) > 0:
             # debt is updated, return dataframe

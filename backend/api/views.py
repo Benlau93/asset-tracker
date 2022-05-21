@@ -6,6 +6,7 @@ from rest_framework.response import Response
 import requests
 import pandas as pd
 import datetime
+from dateutil import relativedelta
 from .pdf_extraction import bank_extraction, cpf_extraction
 from .models import CPFModel, BankModel, InvestmentModel, DebtModel
 
@@ -169,6 +170,54 @@ class DebtView(APIView): # currently only works for 1 debt
             # loop through by month till current month
             while max_yearmonth != current:
                 _ = df.sort_values("DATE")
-                pass
+                new_debt = _.iloc[-1].copy()
+
+                # get new date
+                new_debt["DATE"] = new_debt["DATE"] + relativedelta(months=1)
+                max_yearmonth = new_debt["DATE"].strftime("%b %Y")
+                new_debt["YEARMONTH"] = max_yearmonth
+                
+                # get new debt value
+                new_debt["DEBT_VALUE"] = new_debt["REMAINING_VALUE"]
+
+                # calculate interest, only handle monthly and yearly
+                if new_debt["INTEREST_COMPOUND"] == "Monthly":
+                    new_debt["INTEREST"] = ((new_debt["INTEREST_RATE"] / 12) / 100 ) * new_debt["DEBT_VALUE"]
+                elif new_debt["INTEREST_COMPOUND"] == "Annually" and new_debt["DATE"].month == 12:
+                    new_debt["INTEREST"] = (new_debt["INTEREST_DATE"] / 100) * new_debt["DEBT_VALUE"]
+                else:
+                    new_debt["INTEREST"] = 0
+
+                # calculate remaining value
+                new_debt["REMAINING_VALUE"] = new_debt["DEBT_VALUE"] + new_debt["INTEREST"] - new_debt["REPAYMENT"]
+
+                # add to df to be store in db
+                debt_new = debt_new.append(new_debt, sort=True, ignore_index=True)
+
+            # store in db
+            # insert into debt model
+            df_records =  debt_new.to_dict(orient="records")
+            model_instances = [DebtModel(
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                DEBT_TYPE = record["DEBT_TYPE"],
+                DEBT_VALUE = record["DEBT_VALUE"],
+                INTEREST_RATE = record["INTEREST_RATE"],
+                INTEREST_COMPOUND = record["INTEREST_COMPOUND"],
+                REPAYMENT = record["REPAYMENT"],
+                INTEREST = record["INTEREST"],
+                REMAINING_VALUE = record["REMAINING_VALUE"]
+            ) for record in df_records]
+
+            DebtModel.objects.bulk_create(model_instances)
+
+            # re-query db and return db
+            data = DebtModel.objects.all()
+            serializer = self.debt_serializer(data, many=True)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+                
+
 
 

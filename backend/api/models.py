@@ -32,4 +32,4 @@ class DebtModel(models.Model):
     INTEREST_COMPOUND = models.CharField(blank=False, max_length=20)
     REPAYMENT = models.FloatField(blank=False)
     INTEREST = models.FloatField(blank=False)
-    REMAINING_LOAN = models.FloatField(blank=False)
+    REMAINING_VALUE = models.FloatField(blank=False)

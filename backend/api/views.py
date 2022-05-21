@@ -157,6 +157,7 @@ class DebtView(APIView): # currently only works for 1 debt
         df = pd.DataFrame.from_dict(serializer.data)
         if len(df[df["YEARMONTH"]==current]) > 0:
             # debt is updated, return dataframe
+            print("No Further Debt Refresh Needed ...")
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         else:
@@ -212,6 +213,8 @@ class DebtView(APIView): # currently only works for 1 debt
             ) for record in df_records]
 
             DebtModel.objects.bulk_create(model_instances)
+
+            print("Refreshed Remaining Debt Value ...")
 
             # re-query db and return db
             data = DebtModel.objects.all()

@@ -192,6 +192,7 @@ def update_graph(asset,df, debt):
 
     # convert to dataframe
     df = pd.DataFrame(df)
+    debt = pd.DataFrame(debt)
     # add liquidity
     df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
     

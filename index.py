@@ -3,7 +3,7 @@ from dash import dcc
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 from app import app
-from apps import main
+from apps import main, income
 from datetime import date
 import requests
 import pandas as pd
@@ -14,7 +14,7 @@ import os
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        dbc.NavItem(dbc.NavLink("Breakdown", href="/breakdown"))
+        dbc.NavItem(dbc.NavLink("Income", href="/income"))
 
     ],
     brand="Asset Tracking",
@@ -98,8 +98,11 @@ app.layout = serve_layout
     Output(component_id='investment-store', component_property='data'),
     Input(component_id='url', component_property='pathname')
 )
-def display_page(pathame):
-    layout = main.layout
+def display_page(pathname):
+    if pathname == "/income":
+        layout = income.layout
+    else:
+        layout = main.layout
 
     # load data
     print("RETRIEVE DATA FROM BACKEND API")

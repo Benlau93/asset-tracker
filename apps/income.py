@@ -56,7 +56,7 @@ def generate_indicators(df):
 
     kpi_fig.update_layout(
         grid = {"rows":3, "columns":1, "pattern":"independent"},
-        height = 700,
+        height = 750,
         template = TEMPLATE
     )
 
@@ -92,12 +92,34 @@ def generate_trend(df):
     trend_fig.update_yaxes(tickformat = "$,.0f", range=[0,max_tick])
 
     trend_fig.update_layout(
+        title = "Income Trends by Year, Month",
         legend = {"orientation":"h", "title":"Year", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
         template = TEMPLATE,
-        height=700
+        height=750
     )
     
     return trend_fig
+
+
+def generate_type_fig(df):
+
+    # sum by type
+    df = df.groupby("TYPE").sum()[["VALUE"]].reset_index().sort_values(["VALUE"], ascending=True)
+
+    type_fig = go.Figure()
+
+    type_fig.add_trace(
+        go.Bar(x= df["VALUE"], y=df["TYPE"],orientation="h", hovertemplate = "Total: %{x:$,.0f}", name="Type")
+    )
+
+    type_fig.update_xaxes(showgrid=False, visible=False)
+    type_fig.update_layout(
+        title = "Distribution by Income Type",
+        height = 300,
+        template = TEMPLATE
+    )
+
+    return type_fig
 
 
 
@@ -128,13 +150,16 @@ layout = html.Div([
             ], width=2)
         ], align="center", justify="center", style={"margin-top":10}),
         dbc.Row([
+            dbc.Card(html.H3("Income Analysis", className="text-center text-primary bg-light"), body=True, color="light")
+        ], style={"margin-top":20}),
+        dbc.Row([
             dbc.Col([dcc.Graph(id="income-kpi")], width=3),
             dbc.Col([dcc.Graph(id="trend-kpi")], width=5),
             dbc.Col([
+                dbc.Row(dbc.Col([dcc.Graph(id="type-chart")])),
                 dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
                 dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
-                dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
-                ])
+                ], width=4)
         ])
     ])
 ])
@@ -145,6 +170,7 @@ layout = html.Div([
 @app.callback(
     Output(component_id="income-kpi", component_property="figure"),
     Output(component_id="trend-kpi", component_property="figure"),
+    Output(component_id="type-chart", component_property="figure"),
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
     State(component_id="bank-store", component_property="data"),
@@ -179,13 +205,19 @@ def update_graph(year,type,bank, cpf):
     
     if type =="CPF":
         income_type = income[income["TYPE"].isin(["OA","SA","MA"])].copy()
+        income_year_type = income[(income["TYPE"].isin(["OA","SA","MA"])) & (income["YEARMONTH"].dt.year == year)].copy()
+
     elif type == "Cash":
         income_type = income[income["TYPE"].isin(["DSTA SUPPLEMENT","DSTA SALARY"])].copy()
+        income_year_type = income[(income["TYPE"].isin(["DSTA SUPPLEMENT","DSTA SALARY"])) & (income["YEARMONTH"].dt.year == year)].copy()
+    
     else:
         income_type = income.copy()
+        income_year_type = income_year.copy()
 
     # generate figures
     kpi_fig = generate_indicators(income_year)
     trend_fig = generate_trend(income_type)
+    type_fig = generate_type_fig(income_year_type)
 
-    return kpi_fig, trend_fig
+    return kpi_fig, trend_fig, type_fig

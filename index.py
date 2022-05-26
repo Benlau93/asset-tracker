@@ -7,7 +7,6 @@ from apps import main, income
 from datetime import date
 import requests
 import pandas as pd
-import os
 
 
 # building the navigation bar

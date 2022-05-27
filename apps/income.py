@@ -130,7 +130,7 @@ layout = html.Div([
             dbc.Col([
                 dbc.Select(
                     id = "year-selection",
-                    options = [{"label":y, "value":y} for y in range(2021,YEAR+1)],
+                    options = [{"label":y, "value":y} for y in range(2020,YEAR+1)],
                     value = YEAR
             )], width=2),
             dbc.Col([html.H5("Select Type:")],width=2),

@@ -54,9 +54,13 @@ def bank_extraction():
         pdf_size = len(pdf_text)
         
         # get end date and year
-        end_date = pdf_text[pdf_text.index("Details of Your DBS Multiplier Account") +1].split("to")[-1].strip()
-        end_date = pd.to_datetime(end_date).date()
-        year = end_date.year
+        try:
+            end_date = pdf_text[pdf_text.index("Details of Your DBS Multiplier Account") +1].split("to")[-1].strip()
+            end_date = pd.to_datetime(end_date).date()
+            year = end_date.year
+        except:
+            print(f)
+            continue
 
         # get month end amount
         end_amount = float(pdf_text[len(pdf_text) - pdf_text[::-1].index("Balance Carried Forward") +2].replace(",",""))

@@ -29,6 +29,9 @@ def bank_extraction():
         else:
             filename += f  + "\n"
 
+        # determine format
+        format = 1 if f.startswith("01zz") else 0
+
         # read pdf
         pdf = open(os.path.join(STATEMENT_DIR,f), "rb")
         pdf_reader = PDF.PdfFileReader(pdf)
@@ -40,6 +43,7 @@ def bank_extraction():
         for i in range(num_page):
             pdf_text = pdf_text + "\n" + pdf_reader.getPage(i).extractText()
         pdf_text = pdf_text.split("\n")
+        pdf_text = list(map(lambda x: x.strip(),pdf_text))
         
 
         # remove USD account
@@ -54,16 +58,18 @@ def bank_extraction():
         pdf_size = len(pdf_text)
         
         # get end date and year
-        try:
-            end_date = pdf_text[pdf_text.index("Details of Your DBS Multiplier Account") +1].split("to")[-1].strip()
-            end_date = pd.to_datetime(end_date).date()
-            year = end_date.year
-        except:
-            print(f)
-            continue
+        date_location = pdf_text.index("DBS Multiplier Account") +1 if format ==1 else pdf_text.index("Details of Your DBS Multiplier Account") +1
+        end_date = pdf_text[date_location].split("to")[-1].strip()
+        end_date = pd.to_datetime(end_date).date()
+        year = end_date.year
+
 
         # get month end amount
-        end_amount = float(pdf_text[len(pdf_text) - pdf_text[::-1].index("Balance Carried Forward") +2].replace(",",""))
+        
+        end_amount_location = pdf_text[::-1].index("Balance Carried Forward")
+        end_amount_location = end_amount_location  if format ==1 else end_amount_location -2
+        end_amount = float(pdf_text[len(pdf_text) - end_amount_location].replace(",",""))
+
 
         # add to main dataframe
         bank = pd.concat([bank, pd.DataFrame({"DATE":[end_date],"YEARMONTH":[end_date.strftime("%b %Y")],"BANK_TYPE":["END"],"VALUE":end_amount})], sort=True, ignore_index=True)
@@ -72,42 +78,60 @@ def bank_extraction():
         for i in range(pdf_size):
             
             # DSTA salary
-            if pdf_text[i] == "DSTA":
-                try:
-                    value = float(pdf_text[i +2].replace(",",""))
-                    BANK_TYPE = "DSTA SALARY"
-                except:
+            if format ==0:
+
+                # DSTA
+                if pdf_text[i] == "DSTA":
+                    try:
+                        value = float(pdf_text[i +2].replace(",",""))
+                        BANK_TYPE = "DSTA SALARY"
+                    except:
+                        continue
+
+                # stripe payment
+                elif "STRIPE" in pdf_text[i]:
                     value = float(pdf_text[i +3].replace(",",""))
-                    BANK_TYPE = "DSTA SUPPLEMENT"
-                
-                
-            
-            # stripe payment
-            elif "STRIPE" in pdf_text[i]:
-                value = float(pdf_text[i +3].replace(",",""))
-                BANK_TYPE = "STRIPE"
-            
-            # parent allowance
-            elif re.search("TO :TOH CHOON MUAY|TO :LAU HANG BOO", pdf_text[i] ,flags = re.I):
-                value = float(pdf_text[i + 2].replace(",",""))
-                BANK_TYPE = "PARENT ALLOWANCE"
-                
-            # wife allowance
-            elif pdf_text[i] == "TO :JESLIN TAN":
-                value = float(pdf_text[i+2].replace(",",""))
-                BANK_TYPE = "WIFE ALLOWANCE"
-                
+                    BANK_TYPE = "STRIPE"
+
+                else:
+                    continue
+
+
+                # format and append
+                date = pdf_text[i -2]
+
+
             else:
-                continue
-            
-            # format and append
-            date = pdf_text[i -2]
+
+                # DSTA salary
+                if pdf_text[i] == "GIRO Salary":
+                    value = float(pdf_text[i +1].replace(",",""))
+                    BANK_TYPE = "DSTA SALARY"
+                    date = pdf_text[i -1]
+
+                # stripe
+                elif "STRIPE" in pdf_text[i]:
+                    try: 
+                        value = float(pdf_text[i -2].replace(",",""))
+                        date = pdf_text[i -4]
+                    except:
+                        value = float(pdf_text[i -1].replace(",",""))
+                        date = pdf_text[i -3]
+
+                    BANK_TYPE = "STRIPE"
+                    
+
+                else:
+                    continue
+
             date = pd.to_datetime(date+f" {year}", format="%d %b %Y").date()
             yearmonth = date.strftime("%b %Y")
 
             # append to main dataframe
             _ = pd.DataFrame({"DATE":[date],"YEARMONTH":[yearmonth],"BANK_TYPE":[BANK_TYPE],"VALUE":[value]})
             bank = pd.concat([bank, _], sort=True, ignore_index=True)
+                
+
 
     if len(bank) == 0:
         return 0

@@ -10,6 +10,7 @@ class CPFModel(models.Model):
     OA = models.FloatField()
     SA = models.FloatField()
     MA = models.FloatField()
+    HISTORICAL = models.BooleanField(blank=False, default=False)
 
 class InvestmentModel(models.Model):
     DATE = models.DateField(blank=False)
@@ -22,6 +23,7 @@ class BankModel(models.Model):
     YEARMONTH = models.CharField(blank=False, max_length=10)
     BANK_TYPE = models.CharField(max_length=20, blank=False)
     VALUE = models.FloatField(blank=False)
+    HISTORICAL = models.BooleanField(blank=False, default=False)
 
 class DebtModel(models.Model):
     DATE = models.DateField(blank=False)

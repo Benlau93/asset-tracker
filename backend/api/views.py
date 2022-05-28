@@ -81,25 +81,27 @@ class PDFExtractionViews(APIView):
         if type(bank) == int:
             print("No Further Bank Statement Extraction Needed ...")
         else:
-            print("Extracted New Bank Statement Records ...")
+            
             # insert into bank model
             df_records = bank.to_dict(orient="records")
             model_instances = [BankModel(
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 BANK_TYPE = record["BANK_TYPE"],
-                VALUE = record["VALUE"]
+                VALUE = record["VALUE"],
+                HISTORICAL = False
             ) for record in df_records]
 
             BankModel.objects.bulk_create(model_instances)
+            print("Extracted New Bank Statement Records ...")
 
         if type(cpf) == int:
             print("No Further CPF Extraction Needed ...")
 
         else:
-            print("Extracted New CPF Transaction Records ...")
-            # delete exisitng cpf data
-            exist = CPFModel.objects.all().delete()
+            
+            # delete non-historical cpf data
+            _ = CPFModel.objects.filter(HISTORICAL=False).delete()
 
             # insert into cpf model
             df_records =  cpf.to_dict(orient="records")
@@ -111,10 +113,58 @@ class PDFExtractionViews(APIView):
                 REF = record["REF"],
                 OA = record["OA"],
                 SA = record["SA"],
-                MA = record["MA"]
+                MA = record["MA"],
+                HISTORICAL = False
             ) for record in df_records]
 
             CPFModel.objects.bulk_create(model_instances)
+            print("Extracted New CPF Transaction Records ...")
+
+        return Response(status = status.HTTP_200_OK)
+
+
+class PDFExtractionHistoricalViews(APIView):
+
+    def get(self, request, format=None):
+        cpf_hist = cpf_extraction_historical()
+        bank_hist = bank_extraction_historical()
+
+        # remove all historical data in db
+        _ = BankModel.objects.filter(HISTORICAL=True).delete()
+        _ = CPFModel.objects.filter(HISTORICAL=True).delete()
+
+        # insert into bank model
+        df_records = bank_hist.to_dict(orient="records")
+        model_instances = [BankModel(
+            DATE = record["DATE"],
+            YEARMONTH = record["YEARMONTH"],
+            BANK_TYPE = record["BANK_TYPE"],
+            VALUE = record["VALUE"],
+            HISTORICAL = True
+            ) for record in df_records]
+
+        BankModel.objects.bulk_create(model_instances
+        print("Extracted Historical Bank Statement Records ...")
+
+
+        # historical cpf extraction
+        # insert into cpf model
+        df_records =  cpf_hist.to_dict(orient="records")
+        model_instances = [CPFModel(
+                ID = record["ID"],
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                CODE = record["CODE"],
+                REF = record["REF"],
+                OA = record["OA"],
+                SA = record["SA"],
+                MA = record["MA"],
+                HISTORICAL = True
+            ) for record in df_records]
+
+        CPFModel.objects.bulk_create(model_instances)
+        
+        print("Extracted Historical Bank Statement Records ...")
 
         return Response(status = status.HTTP_200_OK)
 

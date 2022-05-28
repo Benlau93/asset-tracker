@@ -7,14 +7,14 @@ import requests
 import pandas as pd
 import datetime
 from dateutil.relativedelta import relativedelta
-from .pdf_extraction import bank_extraction, cpf_extraction
+from .pdf_extraction import bank_extraction, cpf_extraction, bank_extraction_historical, cpf_extraction_historical
 from .models import CPFModel, BankModel, InvestmentModel, DebtModel
 
 from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer
 
 # Create your views here.
 
-class ExtractInvestmentViews(APIView):
+class ExtractInvestmentView(APIView):
 
     def get(self, request, format=None):
 
@@ -72,7 +72,7 @@ class ExtractInvestmentViews(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class PDFExtractionViews(APIView):
+class PDFExtractionView(APIView):
 
     def get(self, request, format=None):
         cpf = cpf_extraction()
@@ -85,11 +85,11 @@ class PDFExtractionViews(APIView):
             # insert into bank model
             df_records = bank.to_dict(orient="records")
             model_instances = [BankModel(
+                ID = record["YEARMONTH"] + "|" + record["BANK_TYPE"] + "|" + str(round(record["VALUE"],2)),
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 BANK_TYPE = record["BANK_TYPE"],
                 VALUE = record["VALUE"],
-                HISTORICAL = False
             ) for record in df_records]
 
             BankModel.objects.bulk_create(model_instances)
@@ -106,15 +106,14 @@ class PDFExtractionViews(APIView):
             # insert into cpf model
             df_records =  cpf.to_dict(orient="records")
             model_instances = [CPFModel(
-                ID = record["ID"],
+                ID = record["YEARMONTH"] + "|" + record["CODE"] + record["REF"] + str(record["OA"] + record["SA"] + record["MA"]),
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 CODE = record["CODE"],
                 REF = record["REF"],
                 OA = record["OA"],
                 SA = record["SA"],
-                MA = record["MA"],
-                HISTORICAL = False
+                MA = record["MA"]
             ) for record in df_records]
 
             CPFModel.objects.bulk_create(model_instances)
@@ -123,19 +122,20 @@ class PDFExtractionViews(APIView):
         return Response(status = status.HTTP_200_OK)
 
 
-class PDFExtractionHistoricalViews(APIView):
+class PDFExtractionHistoricalView(APIView):
 
     def get(self, request, format=None):
-        cpf_hist = cpf_extraction_historical()
+        # cpf_hist = cpf_extraction_historical()
         bank_hist = bank_extraction_historical()
 
         # remove all historical data in db
         _ = BankModel.objects.filter(HISTORICAL=True).delete()
-        _ = CPFModel.objects.filter(HISTORICAL=True).delete()
+        # _ = CPFModel.objects.filter(HISTORICAL=True).delete()
 
         # insert into bank model
         df_records = bank_hist.to_dict(orient="records")
         model_instances = [BankModel(
+            ID = record["YEARMONTH"] + "|" + record["BANK_TYPE"] + "|" + str(round(record["VALUE"],2)),
             DATE = record["DATE"],
             YEARMONTH = record["YEARMONTH"],
             BANK_TYPE = record["BANK_TYPE"],
@@ -143,28 +143,28 @@ class PDFExtractionHistoricalViews(APIView):
             HISTORICAL = True
             ) for record in df_records]
 
-        BankModel.objects.bulk_create(model_instances
+        BankModel.objects.bulk_create(model_instances)
         print("Extracted Historical Bank Statement Records ...")
 
 
-        # historical cpf extraction
-        # insert into cpf model
-        df_records =  cpf_hist.to_dict(orient="records")
-        model_instances = [CPFModel(
-                ID = record["ID"],
-                DATE = record["DATE"],
-                YEARMONTH = record["YEARMONTH"],
-                CODE = record["CODE"],
-                REF = record["REF"],
-                OA = record["OA"],
-                SA = record["SA"],
-                MA = record["MA"],
-                HISTORICAL = True
-            ) for record in df_records]
+        # # historical cpf extraction
+        # # insert into cpf model
+        # df_records =  cpf_hist.to_dict(orient="records")
+        # model_instances = [CPFModel(
+        #         ID = record["YEARMONTH"] + "|" + record["CODE"] + record["REF"] + str(record["OA"] + record["SA"] + record["MA"]),
+        #         DATE = record["DATE"],
+        #         YEARMONTH = record["YEARMONTH"],
+        #         CODE = record["CODE"],
+        #         REF = record["REF"],
+        #         OA = record["OA"],
+        #         SA = record["SA"],
+        #         MA = record["MA"],
+        #         HISTORICAL = True
+        #     ) for record in df_records]
 
-        CPFModel.objects.bulk_create(model_instances)
+        # CPFModel.objects.bulk_create(model_instances)
         
-        print("Extracted Historical Bank Statement Records ...")
+        # print("Extracted Historical CPF Transaction Records ...")
 
         return Response(status = status.HTTP_200_OK)
 

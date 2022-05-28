@@ -76,7 +76,7 @@ def bank_extraction():
             if pdf_text[i] == "DSTA":
                 try:
                     value = float(pdf_text[i +2].replace(",",""))
-                    BANK_TYPE = "DSTA SALARY"
+                    BANK_TYPE = "SALARY"
                 except:
                     continue
 
@@ -101,6 +101,7 @@ def bank_extraction():
         if len(bank) == 0:
             return 0
         else:
+
             # write to txt file to record as processed
             with open(os.path.join(os.path.split(STATEMENT_DIR)[0],"historical-bank.txt"),"a") as f:
                 f.writelines(filename)
@@ -112,7 +113,6 @@ def bank_extraction_historical():
     
     # initialize
     bank_hist = pd.DataFrame()
-
     for f in os.listdir(STATEMENT_DIR):
 
         # determine format
@@ -169,7 +169,7 @@ def bank_extraction_historical():
                 if pdf_text[i] == "DSTA":
                     try:
                         value = float(pdf_text[i +2].replace(",",""))
-                        BANK_TYPE = "DSTA SALARY"
+                        BANK_TYPE = "SALARY"
                     except:
                         continue
 
@@ -191,7 +191,7 @@ def bank_extraction_historical():
                 # DSTA salary
                 if pdf_text[i] == "GIRO Salary":
                     value = float(pdf_text[i +1].replace(",",""))
-                    BANK_TYPE = "DSTA SALARY"
+                    BANK_TYPE = "SALARY"
                     date = pdf_text[i -1]
 
                 # stripe
@@ -216,7 +216,7 @@ def bank_extraction_historical():
             _ = pd.DataFrame({"DATE":[date],"YEARMONTH":[yearmonth],"BANK_TYPE":[BANK_TYPE],"VALUE":[value]})
             bank_hist = pd.concat([bank_hist, _], sort=True, ignore_index=True)
 
-        return bank_hist
+    return bank_hist
 
 def cpf_extraction():
     CPF_DIR = r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\cpf"
@@ -284,9 +284,6 @@ def cpf_extraction():
         # fillna
         cpf[["OA","SA","MA"]] = cpf[["OA","SA","MA"]].fillna(0)
 
-        # set primary id
-        cpf["ID"] = cpf.index   
-
         # write to historical text
         with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"w") as f:
             f.writelines(filename)
@@ -343,8 +340,5 @@ def cpf_extraction_historical():
         
         # fillna
         cpf_hist[["OA","SA","MA"]] = cpf_hist[["OA","SA","MA"]].fillna(0)
-
-        # set primary id
-        cpf_hist["ID"] = cpf_hist.index   
 
         return cpf_hist

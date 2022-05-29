@@ -76,7 +76,7 @@ def bank_extraction():
             if pdf_text[i] == "DSTA":
                 try:
                     value = float(pdf_text[i +2].replace(",",""))
-                    BANK_TYPE = "SALARY"
+                    BANK_TYPE = "Salary"
                 except:
                     continue
 
@@ -169,7 +169,7 @@ def bank_extraction_historical():
                 if pdf_text[i] == "DSTA":
                     try:
                         value = float(pdf_text[i +2].replace(",",""))
-                        BANK_TYPE = "SALARY"
+                        BANK_TYPE = "Salary"
                     except:
                         continue
 
@@ -191,7 +191,7 @@ def bank_extraction_historical():
                 # DSTA salary
                 if pdf_text[i] == "GIRO Salary":
                     value = float(pdf_text[i +1].replace(",",""))
-                    BANK_TYPE = "SALARY"
+                    BANK_TYPE = "Salary"
                     date = pdf_text[i -1]
 
                 # stripe

@@ -14,6 +14,7 @@ from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, De
 # Create your views here.
 
 class ExtractInvestmentView(APIView):
+    investment_serializer = InvestmentSerializer
 
     def get(self, request, format=None):
 
@@ -46,14 +47,25 @@ class ExtractInvestmentView(APIView):
         # add year month
         portfolio["YEARMONTH"] = portfolio["DATE"].dt.strftime("%b %Y")
 
-        # handle data model
-        # if there are data for current year month, delete it
-        try:
-            # delete existing record
-            record = InvestmentModel.objects.filter(YEARMONTH = portfolio["YEARMONTH"].iloc[0])
+        # check for existing data for current yearmonth
+        record = InvestmentModel.objects.filter(YEARMONTH = portfolio["YEARMONTH"].iloc[0])
+
+        if len(record) > 0 :
+            # if there are data for current year month, delete it
             record.delete()
             print("Updated Existing Investment Value ...")
-        except:
+
+        else:
+            # if no data for current year month, all past year month should be historical data
+            
+            # convert active data to historical
+            active = InvestmentModel.objects.filter(HISTORICAL = False).update(HISTORICAL=True)
+
+            # save historical data to csv
+            serializer = self.investment_serializer(active, many=True)
+            active_df = pd.DataFrame.from_dict(serializer.data.json())
+            active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
+
             print("Added New Investment Value ...")
 
 

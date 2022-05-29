@@ -13,10 +13,12 @@ class CPFModel(models.Model):
     HISTORICAL = models.BooleanField(blank=False, default=False)
 
 class InvestmentModel(models.Model):
+    ID = models.CharField(primary_key=True, max_length = 50)
     DATE = models.DateField(blank=False)
     YEARMONTH = models.CharField(blank=False, max_length=10)
     INVESTMENT_TYPE = models.CharField(max_length=50, blank=False)
     VALUE = models.FloatField(blank=False)
+    HISTORICAL = models.BooleanField(blank=False, default=False)
 
 class BankModel(models.Model):
     ID = models.CharField(primary_key=True, max_length=50)
@@ -27,6 +29,7 @@ class BankModel(models.Model):
     HISTORICAL = models.BooleanField(blank=False, default=False)
 
 class DebtModel(models.Model):
+    ID = models.CharField(primary_key=True, max_length = 50)
     DATE = models.DateField(blank=False)
     YEARMONTH = models.CharField(blank=False, max_length=10)
     DEBT_TYPE = models.CharField(blank=False, max_length=50)

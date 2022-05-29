@@ -5,6 +5,7 @@ import requests
 import pandas as pd
 import datetime
 from dateutil.relativedelta import relativedelta
+import os
 
 from .pdf_extraction import bank_extraction, cpf_extraction, bank_extraction_historical, cpf_extraction_historical
 from .models import CPFModel, BankModel, InvestmentModel, DebtModel
@@ -59,6 +60,7 @@ class ExtractInvestmentView(APIView):
         # insert to investment model
         df_records =  portfolio.to_dict(orient="records")
         model_instances = [InvestmentModel(
+                ID = record["YEARMONTH"] + "|" + record["INVESTMENT_TYPE"],
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 INVESTMENT_TYPE = record["INVESTMENT_TYPE"],
@@ -120,15 +122,22 @@ class PDFExtractionView(APIView):
         return Response(status = status.HTTP_200_OK)
 
 
-class PDFExtractionHistoricalView(APIView):
+class HistoricalExtractionView(APIView):
 
     def get(self, request, format=None):
+        
+        # read investment historical data
+        investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
+        investment_hist["DATE"] = pd.to_datetime(investment_hist["DATE"])
+
+        # pdf extraction of cpf and bank historical data
         cpf_hist = cpf_extraction_historical()
         bank_hist = bank_extraction_historical()
 
         # remove all historical data in db
         _ = BankModel.objects.filter(HISTORICAL=True).delete()
         _ = CPFModel.objects.filter(HISTORICAL=True).delete()
+        _ = InvestmentModel.objects.filter(HISTORICAL=True).delete()
 
         # insert into bank model
         df_records = bank_hist.to_dict(orient="records")
@@ -145,7 +154,6 @@ class PDFExtractionHistoricalView(APIView):
         print("Extracted Historical Bank Statement Records ...")
 
 
-        # historical cpf extraction
         # insert into cpf model
         cpf_hist["TOTAL"] = cpf_hist["OA"] + cpf_hist["SA"] + cpf_hist["MA"]
         cpf_hist["TOTAL"] = cpf_hist["TOTAL"].map(lambda x: str(round(x)))
@@ -166,6 +174,22 @@ class PDFExtractionHistoricalView(APIView):
         CPFModel.objects.bulk_create(model_instances)
         
         print("Extracted Historical CPF Transaction Records ...")
+
+
+        # insert to investment model
+        df_records =  investment_hist.to_dict(orient="records")
+        model_instances = [InvestmentModel(
+                ID = record["YEARMONTH"] + "|" + record["INVESTMENT_TYPE"],
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                INVESTMENT_TYPE = record["INVESTMENT_TYPE"],
+                VALUE = record["VALUE"],
+                HISTORICAL = True,
+            ) for record in df_records]
+
+        InvestmentModel.objects.bulk_create(model_instances)
+
+        print("Extracted Historical Investment Data ...")
 
         return Response(status = status.HTTP_200_OK)
 
@@ -252,6 +276,7 @@ class DebtView(APIView): # currently only works for 1 debt
             # insert into debt model
             df_records =  debt_new.to_dict(orient="records")
             model_instances = [DebtModel(
+                ID = record["YEARMONTH"] + "|" + record["DEBT_TYPE"],
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 DEBT_TYPE = record["DEBT_TYPE"],

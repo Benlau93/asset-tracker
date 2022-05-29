@@ -260,7 +260,7 @@ def cpf_extraction():
         cpf["YEARMONTH"] = cpf["DATE"].dt.strftime("%b %Y")
 
         for acc in accounts:
-            cpf[acc] = cpf[acc].str.replace(",","").astype(np.float32)
+            cpf[acc] = cpf[acc].str.replace(",|\$","").astype(np.float32)
             cpf[acc] = cpf[acc].map(lambda x: np.nan if x==0 else x)
 
         cpf = cpf.sort_values(["DATE"]).reset_index(drop=True)
@@ -294,51 +294,65 @@ def cpf_extraction():
 def cpf_extraction_historical():
     CPF_DIR = r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\cpf-historical"
 
-    # initialize
-    cpf_hist = pd.DataFrame()
-    accounts = ["OA","SA","MA"]
+    # read all historical cpf records
+    cpf_2020 = tabula.read_pdf(os.path.join(CPF_DIR,"CPF Yearly Statement 2020.pdf"), stream=False, pages = "all")[0]
+    cpf_2021 = tabula.read_pdf(os.path.join(CPF_DIR,"CPF Yearly Statement 2021.pdf"), stream=True, pages = "all")[1]
 
-    # read all cpf transaction
-    cpf_hist = pd.DataFrame()
+    # 2020 processing
+    cpf_2020.columns = ["ID","REF","OA","SA","MA"]
+    cpf_2020 = cpf_2020.iloc[cpf_2020[cpf_2020["ID"]=="01 JAN BAL"].index[0]:].copy()
 
-    # loop all yearly transaction and add to dataframe
-    for f in os.listdir(CPF_DIR):
-            
-        # read cpf pdf
-        _ = tabula.read_pdf(os.path.join(CPF_DIR,f), stream=True, pages=1)[0]
-        _.columns = ["DATE","CODE","YEAR","REF","OA","SA","MA"]
-        _ = _.drop(["YEAR"], axis=1) # drop unwanted columns
+    # get date and code
+    def extract(row):
+        id = row["ID"]
+        row["DATE"] = pd.to_datetime(id[:6] + " 2020", format = "%d %b %Y")
+        row["CODE"] = id[7:10]
 
-        # add to main dataframe
-        cpf_hist = cpf_hist.append(_, sort=True, ignore_index=True)
+        return row
 
-        # format cpf
-        cpf_hist["DATE"] = pd.to_datetime(cpf_hist["DATE"])
-        cpf_hist["YEARMONTH"] = cpf_hist["DATE"].dt.strftime("%b %Y")
+    cpf_2020 = cpf_2020.apply(extract, axis=1)
 
-        for acc in accounts:
-            cpf_hist[acc] = cpf_hist[acc].str.replace(",","").astype(np.float32)
-            cpf_hist[acc] = cpf_hist[acc].map(lambda x: np.nan if x==0 else x)
+    # drop ID
+    cpf_2020 = cpf_2020.drop("ID",axis=1)
 
-        cpf_hist = cpf_hist.sort_values(["DATE"]).reset_index(drop=True)
+    # get initial bal
+    initial_balance = cpf_2020[cpf_2020["CODE"]=="BAL"].sort_values(["DATE"]).head(1)
 
-        # get initial balance
-        cpf.loc[0,"CODE"] = "INITAL"
-        cpf = cpf[cpf["CODE"]!="BAL"].copy()
 
-        # get BAL per month
-        bal = cpf.sort_values("DATE")[["OA","SA","MA"]].cumsum()
-        bal = pd.merge(cpf[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
-        bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
-        bal = bal.fillna(method="ffill")
-        bal = bal.groupby("YEARMONTH").tail(1)
-        bal["CODE"] = "BAL"
+    # only retain transaction
+    cpf_2020 = cpf_2020[cpf_2020["CODE"]!="BAL"].copy()
 
-        # add to main cpf dataframe
-        cpf = pd.concat([cpf,bal], sort=True, ignore_index=True)
-        cpf_hist = cpf_hist.sort_values(["DATE"]).reset_index(drop=True)
-        
-        # fillna
-        cpf_hist[["OA","SA","MA"]] = cpf_hist[["OA","SA","MA"]].fillna(0)
+    # 2021 processing
+    cpf_2021.columns = ["DATE","CODE","_","REF","OA","SA","MA"]
+    cpf_2021 = cpf_2021[cpf_2021["CODE"]!="BAL"].drop("_", axis=1)
 
-        return cpf_hist
+    # process date, only retain to Jun records
+    cpf_2021["DATE"] = cpf_2021["DATE"].map(lambda x: pd.to_datetime(x +" 2021",format="%d %b %Y"))
+    cpf_2021 = cpf_2021[cpf_2021["DATE"].dt.month<7].copy()
+
+
+    # combine
+    cpf_hist = pd.concat([initial_balance, cpf_2020, cpf_2021], sort=True, ignore_index=True)[["DATE","CODE","REF","OA","SA","MA"]]
+
+    # format
+    cpf_hist["YEARMONTH"] = cpf_hist["DATE"].dt.strftime("%b %Y")
+    for acc in ["OA","SA","MA"]:
+        cpf_hist[acc] = cpf_hist[acc].str.replace(",|\$","").astype(np.float32)
+        cpf_hist[acc] = cpf_hist[acc].map(lambda x: np.nan if x==0 else x)
+
+    # get BAL per month
+    bal = cpf_hist.sort_values("DATE")[["OA","SA","MA"]].cumsum()
+    bal = pd.merge(cpf_hist[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
+    bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
+    bal = bal.fillna(method="ffill")
+    bal = bal.groupby("YEARMONTH").tail(1)
+    bal["CODE"] = "BAL"
+
+    # add to main cpf_hist dataframe
+    cpf_hist = pd.concat([cpf_hist,bal], sort=True, ignore_index=True)
+    cpf_hist = cpf_hist.sort_values(["DATE"]).reset_index(drop=True)
+    cpf_hist[["OA","SA","MA"]] = cpf_hist[["OA","SA","MA"]].fillna(0)
+
+    return cpf_hist
+
+

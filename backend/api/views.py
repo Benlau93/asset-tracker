@@ -86,6 +86,7 @@ class ExtractInvestmentView(APIView):
 
 
 class PDFExtractionView(APIView):
+    cpf_serializer = CPFSerialzier
 
     def get(self, request, format=None):
         cpf = cpf_extraction()
@@ -111,26 +112,49 @@ class PDFExtractionView(APIView):
         if type(cpf) == int:
             print("No Further CPF Extraction Needed ...")
 
-        # else:
+        else:
             
-            # # delete non-historical cpf data
-            # _ = CPFModel.objects.filter(HISTORICAL=False).delete()
+            # get latest balance in db
+            db_max_ym = cpf["DATE"].min() - relativedelta(months=1)
+            db_max_ym = db_max_ym.strftime("%b %Y")
+            cpf_db = CPFModel.objects.filter(YEARMONTH=db_max_ym).filter(CODE="BAL").get()
+            cpf_db = self.cpf_serializer(cpf_db)
+            cpf_db = pd.DataFrame.from_dict([cpf_db.data])
+            cpf_db["DATE"] = pd.to_datetime(cpf_db["DATE"])
 
-            # # insert into cpf model
-            # df_records =  cpf.to_dict(orient="records")
-            # model_instances = [CPFModel(
-            #     ID = record["YEARMONTH"] + "|" + record["CODE"] + record["REF"] + str(record["OA"] + record["SA"] + record["MA"]),
-            #     DATE = record["DATE"],
-            #     YEARMONTH = record["YEARMONTH"],
-            #     CODE = record["CODE"],
-            #     REF = record["REF"],
-            #     OA = record["OA"],
-            #     SA = record["SA"],
-            #     MA = record["MA"]
-            # ) for record in df_records]
+            # add initial balance to cpf
+            cpf_bal = pd.concat([cpf_db,cpf], sort=True, ignore_index=True)
 
-            # CPFModel.objects.bulk_create(model_instances)
-            # print("Extracted New CPF Transaction Records ...")
+            # get BAL per month
+            bal = cpf_bal.sort_values("DATE")[["OA","SA","MA"]].cumsum()
+            bal = pd.merge(cpf_bal[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
+            bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
+            bal = bal.fillna(method="ffill")
+            bal = bal.groupby("YEARMONTH").tail(1)
+            bal["CODE"] = "BAL"
+
+            # add to main cpf dataframe
+            cpf = pd.concat([cpf,bal], sort=True, ignore_index=True)
+            cpf = cpf.sort_values(["DATE"]).reset_index(drop=True).iloc[1:]
+
+            # insert into cpf model
+            cpf["TOTAL"] = cpf["OA"] + cpf["SA"] + cpf["MA"]
+            cpf["TOTAL"] = cpf["TOTAL"].map(lambda x: str(round(x)))
+
+            df_records =  cpf.to_dict(orient="records")
+            model_instances = [CPFModel(
+                ID = record["YEARMONTH"] + "|" + record["CODE"] + "|" + record["TOTAL"],
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                CODE = record["CODE"],
+                REF = record["REF"],
+                OA = record["OA"],
+                SA = record["SA"],
+                MA = record["MA"]
+            ) for record in df_records]
+
+            CPFModel.objects.bulk_create(model_instances)
+            print("Extracted New CPF Transaction Records ...")
 
         return Response(status = status.HTTP_200_OK)
 

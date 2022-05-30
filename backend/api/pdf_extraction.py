@@ -22,7 +22,6 @@ def bank_extraction():
     filename = ""
 
     for f in os.listdir(STATEMENT_DIR):
-        print(f)
 
         # do not processed statement that are already in db
         if f in hist:
@@ -289,30 +288,10 @@ def cpf_extraction():
         for acc in accounts:
             cpf[acc] = cpf[acc].map(lambda x: round(float(str(x).replace(",","")),2))
         cpf = cpf[cpf["CODE"]!="BAL"].copy()
-            
 
-        # # get initial balance
-        # cpf.loc[0,"CODE"] = "INITAL"
-        # cpf = cpf[cpf["CODE"]!="BAL"].copy()
-
-        # # get BAL per month
-        # bal = cpf.sort_values("DATE")[["OA","SA","MA"]].cumsum()
-        # bal = pd.merge(cpf[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
-        # bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
-        # bal = bal.fillna(method="ffill")
-        # bal = bal.groupby("YEARMONTH").tail(1)
-        # bal["CODE"] = "BAL"
-
-        # # add to main cpf dataframe
-        # cpf = pd.concat([cpf,bal], sort=True, ignore_index=True)
-        # cpf = cpf.sort_values(["DATE"]).reset_index(drop=True)
-        
-        # # fillna
-        # cpf[["OA","SA","MA"]] = cpf[["OA","SA","MA"]].fillna(0)
-
-        # # write to historical text
-        # with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"w") as f:
-        #     f.writelines(filename)
+        # write to historical text
+        with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"w") as f:
+            f.writelines(filename)
 
         return cpf
 

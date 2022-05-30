@@ -56,15 +56,17 @@ class ExtractInvestmentView(APIView):
             print("Updated Existing Investment Value ...")
 
         else:
-            # if no data for current year month, all past year month should be historical data
-            
-            # convert active data to historical
-            active = InvestmentModel.objects.filter(HISTORICAL = False).update(HISTORICAL=True)
+            # check if there is existing active data
+            try:
+                # convert active data to historical         
+                active = InvestmentModel.objects.filter(HISTORICAL = False).update(HISTORICAL=True)
 
-            # save historical data to csv
-            serializer = self.investment_serializer(active, many=True)
-            active_df = pd.DataFrame.from_dict(serializer.data.json())
-            active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
+                # save historical data to csv
+                serializer = self.investment_serializer(active, many=True)
+                active_df = pd.DataFrame.from_dict(serializer.data.json())
+                active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
+            except:
+                pass
 
             print("Added New Investment Value ...")
 

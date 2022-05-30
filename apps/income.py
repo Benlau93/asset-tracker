@@ -16,12 +16,12 @@ TEMPLATE = "plotly_white"
 
 # define variables
 YEAR = date.today().year
-
+BANK_TYPE = ["Salary","Medium"]
 
 def generate_indicators(df):
     # get total income for current year
     income_kpi = df["VALUE"].sum()
-    cash_kpi = df[df["TYPE"].isin(["DSTA SALARY","DSTA SUPPLEMENT"])]["VALUE"].sum()
+    cash_kpi = df[df["TYPE"].isin(BANK_TYPE)]["VALUE"].sum()
     cpf_kpi = income_kpi - cash_kpi
 
     kpi_fig = go.Figure()
@@ -130,7 +130,7 @@ layout = html.Div([
             dbc.Col([
                 dbc.Select(
                     id = "year-selection",
-                    options = [{"label":y, "value":y} for y in range(2020,YEAR+1)],
+                    options = [{"label":y, "value":y} for y in range(YEAR,2019,-1)],
                     value = YEAR
             )], width=2),
             dbc.Col([html.H5("Select Type:")],width=2),
@@ -187,11 +187,11 @@ def update_graph(year,type,bank, cpf):
 
     # process bank statement
     bank["DATE"] = pd.to_datetime(bank["DATE"])
-    bank_income = bank[bank["BANK_TYPE"].isin(["DSTA SUPPLEMENT","DSTA SALARY"])].drop(["DATE","id"], axis=1).rename({"BANK_TYPE":"TYPE"},axis=1) # filter to income
+    bank_income = bank[bank["BANK_TYPE"].isin(BANK_TYPE)].drop(["DATE","ID","HISTORICAL"], axis=1).rename({"BANK_TYPE":"TYPE"},axis=1) # filter to income
     
     # process cpf
     cpf["DATE"] = pd.to_datetime(cpf["DATE"])
-    cpf_income = cpf[(cpf["CODE"]=="CON") & (cpf["REF"].isin(["A","B"]))].drop(["DATE","REF","CODE","ID"], axis=1).copy() # filter to cpf contribution from dsta income
+    cpf_income = cpf[(cpf["CODE"]=="CON") & (cpf["REF"].isin(["A","B"]))].drop(["DATE","REF","CODE","ID","HISTORICAL"], axis=1).copy() # filter to cpf contribution from dsta income
     cpf_income = cpf_income.groupby("YEARMONTH").sum().reset_index() # combine REF A and B
     cpf_income = cpf_income.melt(id_vars=["YEARMONTH"], value_name = "VALUE", var_name = "TYPE")
 
@@ -208,8 +208,8 @@ def update_graph(year,type,bank, cpf):
         income_year_type = income[(income["TYPE"].isin(["OA","SA","MA"])) & (income["YEARMONTH"].dt.year == year)].copy()
 
     elif type == "Cash":
-        income_type = income[income["TYPE"].isin(["DSTA SUPPLEMENT","DSTA SALARY"])].copy()
-        income_year_type = income[(income["TYPE"].isin(["DSTA SUPPLEMENT","DSTA SALARY"])) & (income["YEARMONTH"].dt.year == year)].copy()
+        income_type = income[income["TYPE"].isin(BANK_TYPE)].copy()
+        income_year_type = income[(income["TYPE"].isin(BANK_TYPE)) & (income["YEARMONTH"].dt.year == year)].copy()
     
     else:
         income_type = income.copy()

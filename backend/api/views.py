@@ -68,7 +68,6 @@ class ExtractInvestmentView(APIView):
 
             print("Added New Investment Value ...")
 
-
         # insert to investment model
         df_records =  portfolio.to_dict(orient="records")
         model_instances = [InvestmentModel(
@@ -142,6 +141,10 @@ class HistoricalExtractionView(APIView):
         investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
         investment_hist["DATE"] = pd.to_datetime(investment_hist["DATE"])
 
+        # read initial debt data
+        debt_hist =  pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\debt","debt.csv"))
+        debt_hist["DATE"] = pd.to_datetime(debt_hist["DATE"])
+
         # pdf extraction of cpf and bank historical data
         cpf_hist = cpf_extraction_historical()
         bank_hist = bank_extraction_historical()
@@ -150,6 +153,7 @@ class HistoricalExtractionView(APIView):
         _ = BankModel.objects.filter(HISTORICAL=True).delete()
         _ = CPFModel.objects.filter(HISTORICAL=True).delete()
         _ = InvestmentModel.objects.filter(HISTORICAL=True).delete()
+        _ = DebtModel.objects.all().delete()
 
         # insert into bank model
         df_records = bank_hist.to_dict(orient="records")
@@ -202,6 +206,25 @@ class HistoricalExtractionView(APIView):
         InvestmentModel.objects.bulk_create(model_instances)
 
         print("Extracted Historical Investment Data ...")
+
+        # insert to debt model
+        df_records =  debt_hist.to_dict(orient="records")
+        model_instances = [DebtModel(
+            ID = record["YEARMONTH"] + "|" + record["DEBT_TYPE"],
+            DATE = record["DATE"],
+            YEARMONTH = record["YEARMONTH"],
+            DEBT_TYPE = record["DEBT_TYPE"],
+            DEBT_VALUE = record["DEBT_VALUE"],
+            INTEREST_RATE = record["INTEREST_RATE"],
+            INTEREST_COMPOUND = record["INTEREST_COMPOUND"],
+            REPAYMENT = record["REPAYMENT"],
+            INTEREST = record["INTEREST"],
+            REMAINING_VALUE = record["REMAINING_VALUE"]
+            ) for record in df_records]
+
+        DebtModel.objects.bulk_create(model_instances)
+
+        print("Extracted Debt Baseline Data ...")
 
         return Response(status = status.HTTP_200_OK)
 

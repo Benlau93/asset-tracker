@@ -1,5 +1,3 @@
-from re import L
-from itsdangerous import Serializer
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
@@ -7,14 +5,16 @@ import requests
 import pandas as pd
 import datetime
 from dateutil.relativedelta import relativedelta
-from .pdf_extraction import bank_extraction, cpf_extraction
-from .models import CPFModel, BankModel, InvestmentModel, DebtModel
+import os
 
+from .pdf_extraction import bank_extraction, cpf_extraction, bank_extraction_historical, cpf_extraction_historical
+from .models import CPFModel, BankModel, InvestmentModel, DebtModel
 from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer
 
 # Create your views here.
 
-class ExtractInvestmentViews(APIView):
+class ExtractInvestmentView(APIView):
+    investment_serializer = InvestmentSerializer
 
     def get(self, request, format=None):
 
@@ -47,20 +47,33 @@ class ExtractInvestmentViews(APIView):
         # add year month
         portfolio["YEARMONTH"] = portfolio["DATE"].dt.strftime("%b %Y")
 
-        # handle data model
-        # if there are data for current year month, delete it
-        try:
-            # delete existing record
-            record = InvestmentModel.objects.filter(YEARMONTH = portfolio["YEARMONTH"].iloc[0])
+        # check for existing data for current yearmonth
+        record = InvestmentModel.objects.filter(YEARMONTH = portfolio["YEARMONTH"].iloc[0])
+
+        if len(record) > 0 :
+            # if there are data for current year month, delete it
             record.delete()
             print("Updated Existing Investment Value ...")
-        except:
-            print("Added New Investment Value ...")
 
+        else:
+            # check if there is existing active data
+            try:
+                # convert active data to historical         
+                active = InvestmentModel.objects.filter(HISTORICAL = False).update(HISTORICAL=True)
+
+                # save historical data to csv
+                serializer = self.investment_serializer(active, many=True)
+                active_df = pd.DataFrame.from_dict(serializer.data.json())
+                active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
+            except:
+                pass
+
+            print("Added New Investment Value ...")
 
         # insert to investment model
         df_records =  portfolio.to_dict(orient="records")
         model_instances = [InvestmentModel(
+                ID = record["YEARMONTH"] + "|" + record["INVESTMENT_TYPE"],
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 INVESTMENT_TYPE = record["INVESTMENT_TYPE"],
@@ -72,7 +85,8 @@ class ExtractInvestmentViews(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class PDFExtractionViews(APIView):
+class PDFExtractionView(APIView):
+    cpf_serializer = CPFSerialzier
 
     def get(self, request, format=None):
         cpf = cpf_extraction()
@@ -81,30 +95,55 @@ class PDFExtractionViews(APIView):
         if type(bank) == int:
             print("No Further Bank Statement Extraction Needed ...")
         else:
-            print("Extracted New Bank Statement Records ...")
+            
             # insert into bank model
             df_records = bank.to_dict(orient="records")
             model_instances = [BankModel(
+                ID = str(record["DATE"]) + "|" + record["BANK_TYPE"] + "|" + str(round(record["VALUE"])),
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 BANK_TYPE = record["BANK_TYPE"],
-                VALUE = record["VALUE"]
+                VALUE = record["VALUE"],
             ) for record in df_records]
 
             BankModel.objects.bulk_create(model_instances)
+            print("Extracted New Bank Statement Records ...")
 
         if type(cpf) == int:
             print("No Further CPF Extraction Needed ...")
 
         else:
-            print("Extracted New CPF Transaction Records ...")
-            # delete exisitng cpf data
-            exist = CPFModel.objects.all().delete()
+            
+            # get latest balance in db
+            db_max_ym = cpf["DATE"].min() - relativedelta(months=1)
+            db_max_ym = db_max_ym.strftime("%b %Y")
+            cpf_db = CPFModel.objects.filter(YEARMONTH=db_max_ym).filter(CODE="BAL").get()
+            cpf_db = self.cpf_serializer(cpf_db)
+            cpf_db = pd.DataFrame.from_dict([cpf_db.data])
+            cpf_db["DATE"] = pd.to_datetime(cpf_db["DATE"])
+
+            # add initial balance to cpf
+            cpf_bal = pd.concat([cpf_db,cpf], sort=True, ignore_index=True)
+
+            # get BAL per month
+            bal = cpf_bal.sort_values("DATE")[["OA","SA","MA"]].cumsum()
+            bal = pd.merge(cpf_bal[["DATE","YEARMONTH"]], bal, left_index=True, right_index=True)
+            bal["DATE"] = pd.to_datetime(bal["DATE"].dt.date + relativedelta(day=31))
+            bal = bal.fillna(method="ffill")
+            bal = bal.groupby("YEARMONTH").tail(1)
+            bal["CODE"] = "BAL"
+
+            # add to main cpf dataframe
+            cpf = pd.concat([cpf,bal], sort=True, ignore_index=True)
+            cpf = cpf.sort_values(["DATE"]).reset_index(drop=True).iloc[1:]
 
             # insert into cpf model
+            cpf["TOTAL"] = cpf["OA"] + cpf["SA"] + cpf["MA"]
+            cpf["TOTAL"] = cpf["TOTAL"].map(lambda x: str(round(x)))
+
             df_records =  cpf.to_dict(orient="records")
             model_instances = [CPFModel(
-                ID = record["ID"],
+                ID = record["YEARMONTH"] + "|" + record["CODE"] + "|" + record["TOTAL"],
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 CODE = record["CODE"],
@@ -115,6 +154,103 @@ class PDFExtractionViews(APIView):
             ) for record in df_records]
 
             CPFModel.objects.bulk_create(model_instances)
+            print("Extracted New CPF Transaction Records ...")
+
+        return Response(status = status.HTTP_200_OK)
+
+
+class HistoricalExtractionView(APIView):
+
+    def get(self, request, format=None):
+        
+        # read investment historical data
+        investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
+        investment_hist["DATE"] = pd.to_datetime(investment_hist["DATE"])
+
+        # read initial debt data
+        debt_hist =  pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\debt","debt.csv"))
+        debt_hist["DATE"] = pd.to_datetime(debt_hist["DATE"])
+
+        # pdf extraction of cpf and bank historical data
+        cpf_hist = cpf_extraction_historical()
+        bank_hist = bank_extraction_historical()
+
+        # remove all historical data in db
+        _ = BankModel.objects.filter(HISTORICAL=True).delete()
+        _ = CPFModel.objects.filter(HISTORICAL=True).delete()
+        _ = InvestmentModel.objects.filter(HISTORICAL=True).delete()
+        _ = DebtModel.objects.all().delete()
+
+        # insert into bank model
+        df_records = bank_hist.to_dict(orient="records")
+        model_instances = [BankModel(
+            ID = str(record["DATE"]) + "|" + record["BANK_TYPE"] + "|" + str(round(record["VALUE"])),
+            DATE = record["DATE"],
+            YEARMONTH = record["YEARMONTH"],
+            BANK_TYPE = record["BANK_TYPE"],
+            VALUE = record["VALUE"],
+            HISTORICAL = True
+            ) for record in df_records]
+
+        BankModel.objects.bulk_create(model_instances)
+        print("Extracted Historical Bank Statement Records ...")
+
+
+        # insert into cpf model
+        cpf_hist["TOTAL"] = cpf_hist["OA"] + cpf_hist["SA"] + cpf_hist["MA"]
+        cpf_hist["TOTAL"] = cpf_hist["TOTAL"].map(lambda x: str(round(x)))
+
+        df_records =  cpf_hist.to_dict(orient="records")
+        model_instances = [CPFModel(
+                ID = record["YEARMONTH"] + "|" + record["CODE"] + "|" + record["TOTAL"],
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                CODE = record["CODE"],
+                REF = record["REF"],
+                OA = record["OA"],
+                SA = record["SA"],
+                MA = record["MA"],
+                HISTORICAL = True
+            ) for record in df_records]
+
+        CPFModel.objects.bulk_create(model_instances)
+        
+        print("Extracted Historical CPF Transaction Records ...")
+
+
+        # insert to investment model
+        df_records =  investment_hist.to_dict(orient="records")
+        model_instances = [InvestmentModel(
+                ID = record["YEARMONTH"] + "|" + record["INVESTMENT_TYPE"],
+                DATE = record["DATE"],
+                YEARMONTH = record["YEARMONTH"],
+                INVESTMENT_TYPE = record["INVESTMENT_TYPE"],
+                VALUE = record["VALUE"],
+                HISTORICAL = True,
+            ) for record in df_records]
+
+        InvestmentModel.objects.bulk_create(model_instances)
+
+        print("Extracted Historical Investment Data ...")
+
+        # insert to debt model
+        df_records =  debt_hist.to_dict(orient="records")
+        model_instances = [DebtModel(
+            ID = record["YEARMONTH"] + "|" + record["DEBT_TYPE"],
+            DATE = record["DATE"],
+            YEARMONTH = record["YEARMONTH"],
+            DEBT_TYPE = record["DEBT_TYPE"],
+            DEBT_VALUE = record["DEBT_VALUE"],
+            INTEREST_RATE = record["INTEREST_RATE"],
+            INTEREST_COMPOUND = record["INTEREST_COMPOUND"],
+            REPAYMENT = record["REPAYMENT"],
+            INTEREST = record["INTEREST"],
+            REMAINING_VALUE = record["REMAINING_VALUE"]
+            ) for record in df_records]
+
+        DebtModel.objects.bulk_create(model_instances)
+
+        print("Extracted Debt Baseline Data ...")
 
         return Response(status = status.HTTP_200_OK)
 
@@ -201,6 +337,7 @@ class DebtView(APIView): # currently only works for 1 debt
             # insert into debt model
             df_records =  debt_new.to_dict(orient="records")
             model_instances = [DebtModel(
+                ID = record["YEARMONTH"] + "|" + record["DEBT_TYPE"],
                 DATE = record["DATE"],
                 YEARMONTH = record["YEARMONTH"],
                 DEBT_TYPE = record["DEBT_TYPE"],

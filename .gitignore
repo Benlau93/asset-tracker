@@ -34,7 +34,7 @@ venv.bak/
 .json
 /backend/pdf/cpf
 /backend/pdf/estatement
-/backend/pdf/estatement-historical
 /backend/pdf/cpf-historical
-/backend/pdf/debt
+/backend/pdf/estatement-historical
 /backend/pdf/investment-historical
+/backend/pdf/debt

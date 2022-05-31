@@ -17,6 +17,7 @@ TEMPLATE = "plotly_white"
 # define variables
 YEAR = date.today().year
 BANK_TYPE = ["Salary","Medium"]
+CPF_TYPE = ["OA","SA","MA"]
 
 def generate_indicators(df):
     # get total income for current year
@@ -56,7 +57,7 @@ def generate_indicators(df):
 
     kpi_fig.update_layout(
         grid = {"rows":3, "columns":1, "pattern":"independent"},
-        height = 750,
+        height = 800,
         template = TEMPLATE
     )
 
@@ -65,7 +66,7 @@ def generate_indicators(df):
 def generate_trend(df):
 
     # find unique years
-    uni_years = df.sort_values(["YEARMONTH"], ascending=False)["YEARMONTH"].dt.year.unique()
+    uni_years = df.sort_values(["DATE"], ascending=False)["DATE"].dt.year.unique()
 
     # sum value for each yearmonth
     df = df.groupby(["YEARMONTH"]).sum()[["VALUE"]].reset_index()
@@ -95,10 +96,46 @@ def generate_trend(df):
         title = "Income Trends by Year, Month",
         legend = {"orientation":"h", "title":"Year", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
         template = TEMPLATE,
-        height=750
+        height=800
     )
     
     return trend_fig
+
+
+def generate_bar(df):
+    
+    # split into cash and cpf
+    cash = df[df["TYPE"].isin(BANK_TYPE)].copy()
+    cash = cash.groupby(["YEARMONTH"]).sum()[["VALUE"]].reset_index()
+
+    cpf = df[df["TYPE"].isin(CPF_TYPE)].copy()
+    cpf = cpf.groupby("YEARMONTH").sum()[["VALUE"]].reset_index()
+
+    bar_fig = go.Figure()
+
+    # add cash
+    bar_fig.add_trace(
+        go.Bar(x = cash["YEARMONTH"], y= cash["VALUE"], text = cash["VALUE"], texttemplate = "%{y:$,.0f}",name="Cash", textposition="inside")
+    )
+    # add cpf
+    bar_fig.add_trace(
+        go.Bar(x = cpf["YEARMONTH"], y= cpf["VALUE"], name="CPF", text = cpf["VALUE"], texttemplate = "%{y:$,.0f}", textposition="inside")
+    )
+
+    # update layout
+    bar_fig.update_yaxes(tickformat = "$,.0f", showgrid=False)
+    bar_fig.update_xaxes(tickformat="%b %Y")
+
+    bar_fig.update_layout(
+        title = "Income by Type & Month",
+        legend = {"orientation":"h", "title":"Type", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
+        barmode = "stack",
+        template = TEMPLATE,
+        height=800
+    )
+
+    return bar_fig
+
 
 
 def generate_type_fig(df):
@@ -109,13 +146,14 @@ def generate_type_fig(df):
     type_fig = go.Figure()
 
     type_fig.add_trace(
-        go.Bar(x= df["VALUE"], y=df["TYPE"],orientation="h", hovertemplate = "Total: %{x:$,.0f}", name="Type")
+        go.Pie(labels= df["TYPE"], values=df["VALUE"],textinfo = "label+percent", hovertemplate = "%{label}: %{value:$,.02f}", name="Type")
     )
 
-    type_fig.update_xaxes(showgrid=False, visible=False)
+
     type_fig.update_layout(
         title = "Distribution by Income Type",
-        height = 300,
+        showlegend=False,
+        height = 500,
         template = TEMPLATE
     )
 
@@ -154,12 +192,12 @@ layout = html.Div([
         ], style={"margin-top":20}),
         dbc.Row([
             dbc.Col([dcc.Graph(id="income-kpi")], width=3),
-            dbc.Col([dcc.Graph(id="trend-kpi")], width=5),
+            dbc.Col([dcc.Graph(id="bar-kpi")], width=6),
             dbc.Col([
                 dbc.Row(dbc.Col([dcc.Graph(id="type-chart")])),
                 dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
-                dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
-                ], width=4)
+                # dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
+                ], width=3)
         ])
     ])
 ])
@@ -169,7 +207,7 @@ layout = html.Div([
 
 @app.callback(
     Output(component_id="income-kpi", component_property="figure"),
-    Output(component_id="trend-kpi", component_property="figure"),
+    Output(component_id="bar-kpi", component_property="figure"),
     Output(component_id="type-chart", component_property="figure"),
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
@@ -180,17 +218,16 @@ def update_graph(year,type,bank, cpf):
 
     # process selector
     year = int(year)
+    type_map = {"CPF":CPF_TYPE, "Cash":BANK_TYPE , "All":BANK_TYPE + CPF_TYPE}
 
     # convert to dataframe
     bank = pd.DataFrame(bank)
     cpf = pd.DataFrame(cpf)
 
     # process bank statement
-    bank["DATE"] = pd.to_datetime(bank["DATE"])
     bank_income = bank[bank["BANK_TYPE"].isin(BANK_TYPE)].drop(["DATE","ID","HISTORICAL"], axis=1).rename({"BANK_TYPE":"TYPE"},axis=1) # filter to income
     
     # process cpf
-    cpf["DATE"] = pd.to_datetime(cpf["DATE"])
     cpf_income = cpf[(cpf["CODE"]=="CON") & (cpf["REF"].isin(["A","B"]))].drop(["DATE","REF","CODE","ID","HISTORICAL"], axis=1).copy() # filter to cpf contribution from dsta income
     cpf_income = cpf_income.groupby("YEARMONTH").sum().reset_index() # combine REF A and B
     cpf_income = cpf_income.melt(id_vars=["YEARMONTH"], value_name = "VALUE", var_name = "TYPE")
@@ -198,26 +235,16 @@ def update_graph(year,type,bank, cpf):
     # combine both sources
     income = pd.concat([bank_income, cpf_income], sort=True, ignore_index=True)
     income["YEARMONTH"] = pd.to_datetime(income["YEARMONTH"], format="%b %Y")
-    income["YEARMONTH"] = income["YEARMONTH"].map(lambda x: x + relativedelta(months=1) - relativedelta(days=1))
 
     # filters
     income_year = income[income["YEARMONTH"].dt.year==year].copy()
-    
-    if type =="CPF":
-        income_type = income[income["TYPE"].isin(["OA","SA","MA"])].copy()
-        income_year_type = income[(income["TYPE"].isin(["OA","SA","MA"])) & (income["YEARMONTH"].dt.year == year)].copy()
-
-    elif type == "Cash":
-        income_type = income[income["TYPE"].isin(BANK_TYPE)].copy()
-        income_year_type = income[(income["TYPE"].isin(BANK_TYPE)) & (income["YEARMONTH"].dt.year == year)].copy()
-    
-    else:
-        income_type = income.copy()
-        income_year_type = income_year.copy()
+    income_type = income[income["TYPE"].isin(type_map[type])].copy()
+    income_year_type = income_year[(income_year["TYPE"].isin(type_map[type]))].copy()
 
     # generate figures
     kpi_fig = generate_indicators(income_year)
-    trend_fig = generate_trend(income_type)
+    bar_fig = generate_bar(income_year_type)
+    # trend_fig = generate_trend(income_type)
     type_fig = generate_type_fig(income_year_type)
 
-    return kpi_fig, trend_fig, type_fig
+    return kpi_fig, bar_fig, type_fig

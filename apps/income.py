@@ -16,7 +16,7 @@ TEMPLATE = "plotly_white"
 
 # define variables
 YEAR = date.today().year
-BANK_TYPE = ["Salary","Medium"]
+BANK_TYPE = ["Salary"]
 CPF_TYPE = ["OA","SA","MA"]
 
 def generate_indicators(df):
@@ -172,8 +172,6 @@ def generate_type_fig(df):
     return type_fig
 
 def generate_base_fig(df):
-    # remove medium
-    df = df[df["TYPE"]!="Medium"].copy()
     df["RANK"] = df["VALUE"]
 
     # get base salary
@@ -195,6 +193,16 @@ def generate_base_fig(df):
     )
 
     return base_fig
+
+
+def generate_yoy_indicator(df, year):
+
+    # define year
+    PREV_YEAR = year - 1
+
+    # get prev value
+    prev_income = df[df["YEARMONTH"].dt.year == PREV_YEAR]["VALUE"].sum()
+
 
 layout = html.Div([
     dbc.Container([
@@ -282,11 +290,12 @@ def update_graph(year,type,bank, cpf):
     income_type = income[income["TYPE"].isin(type_map[type])].copy()
     income_year_type = income_year[(income_year["TYPE"].isin(type_map[type]))].copy()
 
-    # generate figures
+    # generate figures for income analysis
     kpi_fig = generate_indicators(income_year)
     bar_fig = generate_bar(income_year_type)
-    # trend_fig = generate_trend(income_type)
     type_fig = generate_type_fig(income_year_type)
     base_fig = generate_base_fig(income_year_type)
+
+    # generate figures for yoy comparison
 
     return kpi_fig, bar_fig, type_fig, base_fig

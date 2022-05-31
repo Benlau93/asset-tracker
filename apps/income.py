@@ -57,7 +57,7 @@ def generate_indicators(df):
 
     kpi_fig.update_layout(
         grid = {"rows":3, "columns":1, "pattern":"independent"},
-        height = 800,
+        height = 750,
         template = TEMPLATE
     )
 
@@ -96,13 +96,17 @@ def generate_trend(df):
         title = "Income Trends by Year, Month",
         legend = {"orientation":"h", "title":"Year", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
         template = TEMPLATE,
-        height=800
+        height=750
     )
     
     return trend_fig
 
 
 def generate_bar(df):
+
+    # get average
+    df_avg = df.groupby("YEARMONTH").sum()[["VALUE"]].reset_index()
+    df_avg["AVG"] = df_avg["VALUE"].mean()
     
     # split into cash and cpf
     cash = df[df["TYPE"].isin(BANK_TYPE)].copy()
@@ -115,11 +119,18 @@ def generate_bar(df):
 
     # add cash
     bar_fig.add_trace(
-        go.Bar(x = cash["YEARMONTH"], y= cash["VALUE"], text = cash["VALUE"], texttemplate = "%{y:$,.0f}",name="Cash", textposition="inside")
+        go.Bar(x = cash["YEARMONTH"], y= cash["VALUE"], text = cash["VALUE"], texttemplate = "%{y:$,.0f}",name="Cash", textposition="inside",
+        marker_color = "#6495ED")
     )
     # add cpf
     bar_fig.add_trace(
-        go.Bar(x = cpf["YEARMONTH"], y= cpf["VALUE"], name="CPF", text = cpf["VALUE"], texttemplate = "%{y:$,.0f}", textposition="inside")
+        go.Bar(x = cpf["YEARMONTH"], y= cpf["VALUE"], name="CPF", text = cpf["VALUE"], texttemplate = "%{y:$,.0f}", textposition="inside",
+        marker_color = "#F2CA85")
+    )
+
+    # add monthly average
+    bar_fig.add_trace(
+        go.Scatter(x = df_avg["YEARMONTH"], y = df_avg["AVG"] , name = "Average", line = dict(color="red", dash="dash"), hovertemplate = "%{y:$,.0f}")
     )
 
     # update layout
@@ -128,10 +139,10 @@ def generate_bar(df):
 
     bar_fig.update_layout(
         title = "Income by Type & Month",
-        legend = {"orientation":"h", "title":"Type", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
+        legend = {"orientation":"h", "title":"Legend", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
         barmode = "stack",
         template = TEMPLATE,
-        height=800
+        height=750
     )
 
     return bar_fig
@@ -146,20 +157,44 @@ def generate_type_fig(df):
     type_fig = go.Figure()
 
     type_fig.add_trace(
-        go.Pie(labels= df["TYPE"], values=df["VALUE"],textinfo = "label+percent", hovertemplate = "%{label}: %{value:$,.02f}", name="Type")
+        go.Pie(labels= df["TYPE"], values=df["VALUE"],textinfo = "label+percent", hovertemplate = "%{label}: %{value:$,.02f}", name="Type",
+        hole = 0.5)
     )
 
 
     type_fig.update_layout(
         title = "Distribution by Income Type",
         showlegend=False,
-        height = 500,
+        height = 450,
         template = TEMPLATE
     )
 
     return type_fig
 
+def generate_base_fig(df):
+    # remove medium
+    df = df[df["TYPE"]!="Medium"].copy()
+    df["RANK"] = df["VALUE"]
 
+    # get base salary
+    base = 0
+    for t in df["TYPE"].unique():
+        _ = df[df["TYPE"]==t].sort_values("YEARMONTH")
+        _["RANK"] = _.groupby("VALUE").rank(method="first")["RANK"]
+        base += _[_["RANK"]>1].tail(1)["VALUE"].iloc[0]
+
+    # generate figure
+    base_fig = go.Figure()
+    base_fig.add_trace(
+        go.Indicator(mode = "number", value = base, number = dict(valueformat="$,.0f"), title = "Monthly Base Income")
+    )
+
+    base_fig.update_layout(
+        template = TEMPLATE,
+        height = 300
+    )
+
+    return base_fig
 
 layout = html.Div([
     dbc.Container([
@@ -192,12 +227,17 @@ layout = html.Div([
         ], style={"margin-top":20}),
         dbc.Row([
             dbc.Col([dcc.Graph(id="income-kpi")], width=3),
-            dbc.Col([dcc.Graph(id="bar-kpi")], width=6),
+            dbc.Col([dcc.Graph(id="bar-kpi")], width=5),
             dbc.Col([
-                dbc.Row(dbc.Col([dcc.Graph(id="type-chart")])),
-                dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
-                # dbc.Row(dbc.Col(dbc.Card(style={"background-color":"orange"}))),
-                ], width=3)
+                dbc.Row([
+                    dbc.Col([dcc.Graph(id="base-chart")]),
+                ]),
+                dbc.Row([
+                    dbc.Col([dcc.Graph(id="type-chart")]),
+                ])], width=4),
+        dbc.Row([
+            dbc.Card(html.H3("Y.O.Y Comparison", className="text-center text-primary bg-light"), body=True, color="light")
+        ], style={"margin-top":20}),
         ])
     ])
 ])
@@ -209,6 +249,7 @@ layout = html.Div([
     Output(component_id="income-kpi", component_property="figure"),
     Output(component_id="bar-kpi", component_property="figure"),
     Output(component_id="type-chart", component_property="figure"),
+    Output(component_id="base-chart", component_property="figure"),
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
     State(component_id="bank-store", component_property="data"),
@@ -246,5 +287,6 @@ def update_graph(year,type,bank, cpf):
     bar_fig = generate_bar(income_year_type)
     # trend_fig = generate_trend(income_type)
     type_fig = generate_type_fig(income_year_type)
+    base_fig = generate_base_fig(income_year_type)
 
-    return kpi_fig, bar_fig, type_fig
+    return kpi_fig, bar_fig, type_fig, base_fig

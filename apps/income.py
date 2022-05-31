@@ -63,18 +63,18 @@ def generate_indicators(df):
 
     return kpi_fig
 
-def generate_trend(df):
+def generate_yoy_trend(df):
 
     # find unique years
-    uni_years = df.sort_values(["DATE"], ascending=False)["DATE"].dt.year.unique()
+    uni_years = df.sort_values(["YEARMONTH"])["YEARMONTH"].dt.year.unique()
 
     # sum value for each yearmonth
     df = df.groupby(["YEARMONTH"]).sum()[["VALUE"]].reset_index()
-    first = True
-    # get max value for tixk
+
+    # get max value for tick
     max_tick = df["VALUE"].max() * 1.1
 
-    trend_fig = go.Figure()
+    yoy_trend_fig = go.Figure()
 
     # add line chart for each year
     for y in uni_years:
@@ -83,23 +83,20 @@ def generate_trend(df):
         _ = df[df["YEARMONTH"].dt.year == y].copy()
 
         # determine mode
-        mode =  "lines+markers+text" if first else  "lines+markers"
-        first = False
-        trend_fig.add_trace(
-            go.Scatter(x=_["YEARMONTH"].dt.strftime("%b"), y=_["VALUE"], mode = mode, texttemplate  = "%{y:$,.0f}" ,textposition="bottom right", name=str(y))
+        yoy_trend_fig.add_trace(
+            go.Scatter(x=_["YEARMONTH"].dt.strftime("%b"), y=_["VALUE"], mode = "lines+markers", texttemplate  = "%{y:$,.0f}" ,textposition="bottom right", name=str(y))
         )
 
-    trend_fig.update_xaxes(showgrid=False)
-    trend_fig.update_yaxes(tickformat = "$,.0f", range=[0,max_tick])
+    yoy_trend_fig.update_xaxes(showgrid=False)
+    yoy_trend_fig.update_yaxes(tickformat = "$,.0f", range=[0,max_tick])
 
-    trend_fig.update_layout(
-        title = "Income Trends by Year, Month",
+    yoy_trend_fig.update_layout(
         legend = {"orientation":"h", "title":"Year", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
         template = TEMPLATE,
         height=750
     )
     
-    return trend_fig
+    return yoy_trend_fig
 
 
 def generate_bar(df):
@@ -139,7 +136,7 @@ def generate_bar(df):
 
     bar_fig.update_layout(
         legend = {"orientation":"h", "title":"Legend", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
-        annotations = [dict(xref="paper", yref="paper",x=0.9,y=0.95, xanchor="left",yanchor="top",text=f"Mean: ${round(df_avg['AVG'].iloc[0])}",
+        annotations = [dict(xref="paper", yref="paper",x=0.9,y=0.95, xanchor="left",yanchor="top",text="Mean: ${:,}".format(round(df_avg['AVG'].iloc[0])),
                         font = dict(size=15, color="red"), showarrow=False)],
         barmode = "stack",
         template = TEMPLATE,
@@ -166,7 +163,7 @@ def generate_type_fig(df):
     type_fig.update_layout(
         title = "Distribution by Income Type",
         showlegend=False,
-        height = 450,
+        height = 500,
         template = TEMPLATE
     )
 
@@ -190,7 +187,7 @@ def generate_base_fig(df):
 
     base_fig.update_layout(
         template = TEMPLATE,
-        height = 300
+        height = 250
     )
 
     return base_fig
@@ -198,12 +195,52 @@ def generate_base_fig(df):
 
 def generate_yoy_indicator(df, year):
 
-    # define year
+    # define year, month
     PREV_YEAR = year - 1
+    MONTH = df[df["YEARMONTH"].dt.year==year]["YEARMONTH"].dt.month.max()
 
-    # get prev value
-    prev_income = df[df["YEARMONTH"].dt.year == PREV_YEAR]["VALUE"].sum()
+    # get prev and current value
+    prev_income = df[(df["YEARMONTH"].dt.year == PREV_YEAR) & (df["YEARMONTH"].dt.month <=MONTH)]["VALUE"].sum()
+    curr_income = df[(df["YEARMONTH"].dt.year == year) & (df["YEARMONTH"].dt.month <=MONTH)]["VALUE"].sum()
 
+    # get change
+    # check if prev year present
+    if prev_income == 0:
+        yoy_change, yoy_per = 0,0
+    else:
+        yoy_change = curr_income - prev_income
+        yoy_per = (curr_income - prev_income) / prev_income
+
+    # generate figure
+    yoy_fig = go.Figure()
+
+    yoy_fig.add_trace(
+        go.Indicator(
+            mode="number",
+                value = yoy_change,
+                title = "YoY Change",
+                number = dict(valueformat="$,.0f"),
+                domain = {"row":0, "column":0}
+        )
+    )
+
+    yoy_fig.add_trace(
+        go.Indicator(
+            mode="number",
+                value = yoy_per,
+                title = "YoY Change (%)",
+                number = dict(valueformat=".01%"),
+                domain = {"row":0, "column":1}
+        )
+    )
+    yoy_fig.update_layout(
+        grid = {"rows":1, "columns":2, "pattern":"independent"},
+        height = 250,
+        template = TEMPLATE
+    )
+
+    return yoy_fig
+    
 
 layout = html.Div([
     dbc.Container([
@@ -245,8 +282,14 @@ layout = html.Div([
                     dbc.Col([dcc.Graph(id="type-chart")]),
                 ])], width=4),
         dbc.Row([
-            dbc.Card(html.H3("Y.O.Y Comparison", className="text-center text-primary bg-light"), body=True, color="light")
+            dbc.Card(html.H3("Y.o.Y Comparison", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
+        dbc.Row([
+            dbc.Col([dcc.Graph(id="yoy-kpi")], width=8)
+        ], justify="center"),
+        dbc.Row([
+            dbc.Col([dcc.Graph(id="yoy-trend-chart")], width=8)
+        ])
         ])
     ])
 ])
@@ -259,6 +302,8 @@ layout = html.Div([
     Output(component_id="bar-kpi", component_property="figure"),
     Output(component_id="type-chart", component_property="figure"),
     Output(component_id="base-chart", component_property="figure"),
+    Output(component_id="yoy-kpi", component_property="figure"),
+    Output(component_id="yoy-trend-chart", component_property="figure"),
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
     State(component_id="bank-store", component_property="data"),
@@ -298,5 +343,7 @@ def update_graph(year,type,bank, cpf):
     base_fig = generate_base_fig(income_year_type)
 
     # generate figures for yoy comparison
+    yoy_fig = generate_yoy_indicator(income_type, year)
+    yoy_trend_fig = generate_yoy_trend(income_type)
 
-    return kpi_fig, bar_fig, type_fig, base_fig
+    return kpi_fig, bar_fig, type_fig, base_fig, yoy_fig, yoy_trend_fig

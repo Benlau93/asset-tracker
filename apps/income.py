@@ -138,8 +138,9 @@ def generate_bar(df):
     bar_fig.update_xaxes(tickformat="%b %Y")
 
     bar_fig.update_layout(
-        title = "Income by Type & Month",
         legend = {"orientation":"h", "title":"Legend", "yanchor":"bottom", "xanchor":"right","y":1, "x":1},
+        annotations = [dict(xref="paper", yref="paper",x=0.9,y=0.95, xanchor="left",yanchor="top",text=f"Mean: ${round(df_avg['AVG'].iloc[0])}",
+                        font = dict(size=15, color="red"), showarrow=False)],
         barmode = "stack",
         template = TEMPLATE,
         height=750

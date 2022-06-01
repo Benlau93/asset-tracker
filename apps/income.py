@@ -273,6 +273,77 @@ def generate_yoy_indicator(df, year):
     )
 
     return yoy_fig
+
+def generate_yoy_change(df, curr_year):
+
+    # get year
+    df["YEAR"] = df["YEARMONTH"].dt.year
+    df = df[df["YEAR"]<=curr_year].copy()
+
+    # get change for historical
+    df_hist = df[df["YEAR"]<curr_year].copy()
+    df_hist = df_hist.groupby(["YEAR"]).sum()[["VALUE"]].reset_index()
+    df_hist["YEAR-1"] = df_hist["VALUE"].shift(1)
+    
+
+    # get change for current
+    df_curr = df[df["YEAR"]>=curr_year-1].copy()
+    # remove month not in current month
+    max_curr_month = df[df["YEAR"]==curr_year]["YEARMONTH"].dt.month.max()
+    df_curr = df_curr[df_curr["YEARMONTH"].dt.month<=max_curr_month].copy()
+    df_curr = df_curr.groupby(["YEAR"]).sum()[["VALUE"]].reset_index()
+    df_curr["YEAR-1"] = df_curr["VALUE"].shift(1)
+    df_curr = df_curr[df_curr["YEAR"]==curr_year].copy()
+
+    # merge
+    yoy_change = pd.concat([df_hist, df_curr], sort=True, ignore_index=True)
+    yoy_change["%CHANGE"] = (yoy_change["VALUE"] - yoy_change["YEAR-1"]) / yoy_change["YEAR-1"]
+
+    # generate chart
+    yoy_change_fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # add % change
+    yoy_change_fig.add_trace(
+        go.Bar(x = yoy_change["YEAR"], y = yoy_change["%CHANGE"], textposition="inside", texttemplate="%{y:.01%}", hovertemplate = "%{x}, %{y:.01%}",name="YoY % Change")
+    )
+
+    # add total annual income
+    yoy_change_fig.add_trace(
+        go.Scatter(x = yoy_change["YEAR"], y = yoy_change["VALUE"], mode = "lines+markers+text", texttemplate="%{y:$,.0f}",textposition="bottom left", hovertemplate="%{y:$,.0f}")
+    , secondary_y = True)
+
+    yoy_change_fig.update_yaxes(showticklabels=False, showgrid=False)
+    yoy_change_fig.update_yaxes(showticklabels=False, showgrid=False, secondary_y=True, range=[0,yoy_change["VALUE"].max()])
+    yoy_change_fig.update_xaxes(showgrid=False, dtick=1)
+
+    yoy_change_fig.update_layout(
+        template=TEMPLATE,
+        height=500,
+        showlegend=False
+    )
+
+    # get avg change
+    avg_change = yoy_change["%CHANGE"].mean()
+
+    # indicator
+    avg_change_fig = go.Figure()
+    avg_change_fig.add_trace(
+        go.Indicator(
+            mode="number",
+            value=avg_change,
+            title="Annualised % Change",
+            number = dict(valueformat=".01%"),
+
+        )
+    )
+    
+    avg_change_fig.update_layout(
+        template=TEMPLATE,
+        height=250
+    )
+
+    return yoy_change_fig, avg_change_fig
+
     
 
 layout = html.Div([
@@ -321,24 +392,27 @@ layout = html.Div([
             dbc.Col([dcc.Graph(id="yoy-kpi")], width=8)
         ], justify="center"),
         dbc.Row([
-            dbc.Col([html.H5("Show Historical:")],width={"size":2,"offset":2}, align="center"),
-            dbc.Col([
-                    dbc.RadioItems(
-                        id="visible-radios",
-                        className="btn-group",
-                        inputClassName="btn-check",
-                        labelClassName="btn btn-outline-info",
-                        labelCheckedClassName="active",
-                        options=[
-                            {"label": "No", "value": "No"},
-                            {"label": "Yes", "value": "Yes"},
-                        ],
-                        value="No")
-            ], width=2)
-        ]),
+                dbc.Col([html.H4("Show Historical:")],width={"size":2,"offset":2}, align="center"),
+                dbc.Col([
+                dbc.RadioItems(
+                    id="visible-radios",
+                    className="btn-group",
+                    inputClassName="btn-check",
+                    labelClassName="btn btn-outline-info",
+                    labelCheckedClassName="active",
+                    options=[
+                        {"label": "No", "value": "No"},
+                        {"label": "Yes", "value": "Yes"},
+                    ],
+                    value="No")], width=2),
+                    ], justify="center"),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="yoy-trend-chart")], width=8)
-        ])
+            dbc.Col([dcc.Graph(id="yoy-trend-chart")], width=7),
+            dbc.Col([
+                dbc.Row([dbc.Col([dcc.Graph(id="yoy-change-kpi")])]),
+                dbc.Row([dbc.Col([dcc.Graph(id="yoy-change-chart")])])
+            ], width=5)
+        ]),
         ])
     ])
 ])
@@ -353,6 +427,8 @@ layout = html.Div([
     Output(component_id="base-chart", component_property="figure"),
     Output(component_id="yoy-kpi", component_property="figure"),
     Output(component_id="yoy-trend-chart", component_property="figure"),
+    Output(component_id="yoy-change-kpi", component_property="figure"),
+    Output(component_id="yoy-change-chart", component_property="figure"),
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
     Input(component_id="visible-radios", component_property="value"),
@@ -395,5 +471,6 @@ def update_graph(year,type, visible,bank, cpf):
     # generate figures for yoy comparison
     yoy_fig = generate_yoy_indicator(income_type, year)
     yoy_trend_fig = generate_yoy_trend(income_type, year, visible)
+    yoy_change_fig, avg_change_fig = generate_yoy_change(income_type, year)
 
-    return kpi_fig, bar_fig, type_fig, base_fig, yoy_fig, yoy_trend_fig
+    return kpi_fig, bar_fig, type_fig, base_fig, yoy_fig, yoy_trend_fig, avg_change_fig, yoy_change_fig

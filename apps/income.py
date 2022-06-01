@@ -63,29 +63,62 @@ def generate_indicators(df):
 
     return kpi_fig
 
-def generate_yoy_trend(df):
+def generate_yoy_trend(df, year, visible):
 
-    # find unique years
+    # get prev year
+    prev_year = year - 1
+
+    # find unique years/month
     uni_years = df.sort_values(["YEARMONTH"])["YEARMONTH"].dt.year.unique()
 
+    # create df for all month
+    month_df = pd.DataFrame({"MONTH":list(range(1,13)),"YEARMONTH_REF":df.sort_values(["YEARMONTH"])["YEARMONTH"].dt.strftime("%b").unique(),"VALUE_REF":[0] * 12})
+    
     # sum value for each yearmonth
     df = df.groupby(["YEARMONTH"]).sum()[["VALUE"]].reset_index()
+    df["MONTH"] = df["YEARMONTH"].dt.month # define month
 
     # get max value for tick
     max_tick = df["VALUE"].max() * 1.1
 
     yoy_trend_fig = go.Figure()
 
-    # add line chart for each year
-    for y in uni_years:
+    # add current year line chart
+    _ = df[df["YEARMONTH"].dt.year == year].copy()
+    # check missing month
+    _ = pd.merge(_, month_df, on="MONTH", how="outer").sort_values("MONTH")
+    _["VALUE"] = _["VALUE"].fillna(_["VALUE_REF"])
 
-        # filter data
-        _ = df[df["YEARMONTH"].dt.year == y].copy()
+    yoy_trend_fig.add_trace(
+        go.Scatter(x=_["YEARMONTH_REF"], y=_["VALUE"], mode = "lines+markers", name=str(year),
+        line = dict(color = "firebrick", width=2))
+    )
 
-        # determine mode
-        yoy_trend_fig.add_trace(
-            go.Scatter(x=_["YEARMONTH"].dt.strftime("%b"), y=_["VALUE"], mode = "lines+markers", texttemplate  = "%{y:$,.0f}" ,textposition="bottom right", name=str(y))
-        )
+    # add prev year line chart
+    _ = df[df["YEARMONTH"].dt.year == prev_year].sort_values("YEARMONTH").copy()
+    # check missing month
+    _ = pd.merge(_, month_df, on="MONTH", how="outer").sort_values("MONTH")
+    _["VALUE"] = _["VALUE"].fillna(_["VALUE_REF"])
+
+    yoy_trend_fig.add_trace(
+        go.Scatter(x=_["YEARMONTH_REF"], y=_["VALUE"], mode = "lines+markers", name=str(prev_year),
+        line = dict(color = "royalblue", width=1, dash="dash"))
+    )
+
+    # if visible, show historical data
+    if visible == "Yes":
+        for y in uni_years:
+            if y < prev_year:
+                _ = df[df["YEARMONTH"].dt.year == y].sort_values("YEARMONTH").copy()
+                # check missing month
+                _ = pd.merge(_, month_df, on="MONTH", how="outer").sort_values("MONTH")
+                _["VALUE"] = _["VALUE"].fillna(_["VALUE_REF"])
+
+                yoy_trend_fig.add_trace(
+                    go.Scatter(x=_["YEARMONTH_REF"], y=_["VALUE"], mode = "lines+markers", name=str(y),
+                    line = dict(color="#D3D3D3", dash="dot"))
+                )
+
 
     yoy_trend_fig.update_xaxes(showgrid=False)
     yoy_trend_fig.update_yaxes(tickformat = "$,.0f", range=[0,max_tick])
@@ -288,6 +321,22 @@ layout = html.Div([
             dbc.Col([dcc.Graph(id="yoy-kpi")], width=8)
         ], justify="center"),
         dbc.Row([
+            dbc.Col([html.H5("Show Historical:")],width={"size":2,"offset":2}, align="center"),
+            dbc.Col([
+                    dbc.RadioItems(
+                        id="visible-radios",
+                        className="btn-group",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-info",
+                        labelCheckedClassName="active",
+                        options=[
+                            {"label": "No", "value": "No"},
+                            {"label": "Yes", "value": "Yes"},
+                        ],
+                        value="No")
+            ], width=2)
+        ]),
+        dbc.Row([
             dbc.Col([dcc.Graph(id="yoy-trend-chart")], width=8)
         ])
         ])
@@ -306,10 +355,11 @@ layout = html.Div([
     Output(component_id="yoy-trend-chart", component_property="figure"),
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
+    Input(component_id="visible-radios", component_property="value"),
     State(component_id="bank-store", component_property="data"),
     State(component_id="cpf-store", component_property="data")
 )
-def update_graph(year,type,bank, cpf):
+def update_graph(year,type, visible,bank, cpf):
 
     # process selector
     year = int(year)
@@ -344,6 +394,6 @@ def update_graph(year,type,bank, cpf):
 
     # generate figures for yoy comparison
     yoy_fig = generate_yoy_indicator(income_type, year)
-    yoy_trend_fig = generate_yoy_trend(income_type)
+    yoy_trend_fig = generate_yoy_trend(income_type, year, visible)
 
     return kpi_fig, bar_fig, type_fig, base_fig, yoy_fig, yoy_trend_fig

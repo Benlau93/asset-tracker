@@ -309,7 +309,7 @@ def generate_yoy_change(df, curr_year):
 
     # add total annual income
     yoy_change_fig.add_trace(
-        go.Scatter(x = yoy_change["YEAR"], y = yoy_change["VALUE"], mode = "lines+markers+text", texttemplate="%{y:$,.0f}",textposition="bottom left", hovertemplate="%{y:$,.0f}")
+        go.Scatter(x = yoy_change["YEAR"], y = yoy_change["VALUE"], mode = "lines+markers+text", texttemplate="%{y:$,.0f}",textposition="bottom left", hovertemplate="%{y:$,.0f}", name="Annual Income")
     , secondary_y = True)
 
     yoy_change_fig.update_yaxes(showticklabels=False, showgrid=False)

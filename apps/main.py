@@ -58,7 +58,11 @@ def generate_sub_indicator(df, asset):
     # calculate value and % 
     total_value = df["VALUE"].sum()
 
-    filtered_value = df[df["Liquidity"]==asset]["VALUE"].sum()
+    if asset != "Total":
+        filtered_value = df[df["Liquidity"]==asset]["VALUE"].sum()
+    else:
+        filtered_value = df["VALUE"].sum()
+
     per = filtered_value / total_value
     
     # value figure
@@ -155,10 +159,11 @@ layout = html.Div([
                         labelClassName="btn btn-outline-info",
                         labelCheckedClassName="active",
                         options=[
+                            {"label":"Total", "value":"Total"},
                             {"label": "Liquid", "value": "Liquid"},
                             {"label": "non-Liquid", "value": "non-Liquid"}
                         ],
-                        value="Liquid")
+                        value="Total")
             ], width = 3, align="center"),
         ], justify="center"),
         dbc.Row([
@@ -201,12 +206,17 @@ def update_graph(asset,df, debt):
     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
     debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
 
+    # filter
+    if asset != "Total":
+        df_latest_asset = df_latest[df_latest["Liquidity"]==asset].copy()
+    else:
+        df_latest_asset = df_latest.copy()
 
     # generate charts
     main_fig = generate_indicator(df_latest)
     debt_fig = generate_debt_indicator(debt_latest)
     value_fig, per_fig = generate_sub_indicator(df_latest, asset)
-    pie_fig = generate_pie(df_latest[df_latest["Liquidity"]==asset].copy())
-    line_fig = generate_line(df[df["Liquidity"]==asset].copy())
+    pie_fig = generate_pie(df_latest_asset)
+    line_fig = generate_line(df_latest_asset)
 
     return main_fig, debt_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig

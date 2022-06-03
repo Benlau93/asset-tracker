@@ -209,14 +209,16 @@ def update_graph(asset,df, debt):
     # filter
     if asset != "Total":
         df_latest_asset = df_latest[df_latest["Liquidity"]==asset].copy()
+        df_asset = df[df["Liquidity"]==asset].copy()
     else:
         df_latest_asset = df_latest.copy()
+        df_asset = df.copy()
 
     # generate charts
     main_fig = generate_indicator(df_latest)
     debt_fig = generate_debt_indicator(debt_latest)
     value_fig, per_fig = generate_sub_indicator(df_latest, asset)
     pie_fig = generate_pie(df_latest_asset)
-    line_fig = generate_line(df_latest_asset)
+    line_fig = generate_line(df_asset)
 
     return main_fig, debt_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig

@@ -290,7 +290,7 @@ def cpf_extraction():
         cpf = cpf[cpf["CODE"]!="BAL"].copy()
 
         # write to historical text
-        with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"w") as f:
+        with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"a") as f:
             f.writelines(filename)
 
         return cpf

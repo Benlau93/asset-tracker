@@ -222,16 +222,3 @@ def update_graph(asset,df, debt):
     line_fig = generate_line(df_asset)
 
     return main_fig, debt_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig
-
-
-@app.callback(
-    Output(component_id="line-chart",component_property="figure"),
-    Input(component_id="pie-chart", component_property="clickData"),
-    State(component_id="df-store", component_property="data")
-)
-def filter_type(click, df):
-
-    # convert to dataframe
-    df = pd.DataFrame(df)
-
-    print(click)

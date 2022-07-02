@@ -79,22 +79,50 @@ def generate_sub_indicator(df, asset):
         template = TEMPLATE
     )
 
-    # % indicator
-    per_fig = go.Figure()
-    per_fig.add_trace(
-        go.Indicator(mode="number",
-                    value = per,
-                    title = "% Total Value",
-                    number = dict(valueformat=".01%")
-        )
+    # # % indicator
+    # per_fig = go.Figure()
+    # per_fig.add_trace(
+    #     go.Indicator(mode="number",
+    #                 value = per,
+    #                 title = "% Total Value",
+    #                 number = dict(valueformat=".01%")
+    #     )
+    # )
+
+    # per_fig.update_layout(
+    #     height = 250,
+    #     template = TEMPLATE
+    # )
+
+    return value_fig
+
+def generate_bar(df):
+    df_ = df.groupby("Liquidity").sum()[["VALUE"]].reset_index()
+    total = df_["VALUE"].sum()
+    df_["PER"] = df_["VALUE"] / total
+    df_["GROUP"] = "Asset"
+
+    # add figure
+    bar_fig = go.Figure()
+    bar_fig.add_trace(
+        go.Bar(x=df_["PER"], y=df_["Liquidity"], textposition="inside", texttemplate="%{y}: %{x:.1%}", hovertemplate="%{y}: %{x:.1%}",orientation='h', name="Liquidity")
+    )
+    # bar_fig.add_trace(
+    #     go.Bar(x=df_[df_["Liquidity"]!="Liquid"]["PER"], y=df_["GROUP"], textposition="outside", texttemplate="non-Liquid: %{x:.1%}", hovertemplate="%{x:.1%}",orientation='h', name="non-Liquid")
+    # )
+
+    bar_fig.update_layout(
+        # barmode="stack",
+        template=TEMPLATE,
+        height=300,
+        yaxis=dict(visible=False),
+        xaxis=dict(visible=False),
+        showlegend=False
     )
 
-    per_fig.update_layout(
-        height = 250,
-        template = TEMPLATE
-    )
+    return bar_fig
+    
 
-    return value_fig, per_fig
 
 def generate_pie(df):
 
@@ -148,30 +176,30 @@ def generate_line(df):
 layout = html.Div([
     dbc.Container([
         dbc.Row([
-            dbc.Col([dcc.Graph(id="main-kpi")], width = 4),
-            dbc.Col([dcc.Graph(id="debt-kpi")], width = 4),
-            dbc.Col([
-                    html.H6("Select Asset Class:"),
-                    dbc.RadioItems(
-                        id="radios",
-                        className="btn-group",
-                        inputClassName="btn-check",
-                        labelClassName="btn btn-outline-info",
-                        labelCheckedClassName="active",
-                        options=[
-                            {"label":"Total", "value":"Total"},
-                            {"label": "Liquid", "value": "Liquid"},
-                            {"label": "non-Liquid", "value": "non-Liquid"}
-                        ],
-                        value="Total")
-            ], width = 3, align="center"),
+            dbc.Col([dcc.Graph(id="main-kpi")], width = 5),
+            dbc.Col([dcc.Graph(id="debt-kpi")], width = 5),
+            # dbc.Col([
+            #         html.H6("Select Asset Class:"),
+            #         dbc.RadioItems(
+            #             id="radios",
+            #             className="btn-group",
+            #             inputClassName="btn-check",
+            #             labelClassName="btn btn-outline-info",
+            #             labelCheckedClassName="active",
+            #             options=[
+            #                 {"label":"Total", "value":"Total"},
+            #                 {"label": "Liquid", "value": "Liquid"},
+            #                 {"label": "non-Liquid", "value": "non-Liquid"}
+            #             ],
+            #             value="Total")
+            # ], width = 3, align="center"),
         ], justify="center"),
         dbc.Row([
-            dbc.Card(html.H3(id="info", className="text-center text-light bg-dark"), body=True, color="dark")
+            dbc.Card(html.H3(id="info", children="Asset Breakdown",className="text-center text-light bg-dark"), body=True, color="dark")
         ]),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="value-kpi")], width = 5),
-            dbc.Col([dcc.Graph(id="per-kpi")], width=5)
+            dbc.Col([dcc.Graph(id="value-kpi")], width = 4, align="center"),
+            dbc.Col([dcc.Graph(id="liquid-chart")], width=6, align="center")
         ], justify = "center"),
         dbc.Row([
             dbc.Col([dcc.Graph(id="line-chart")], width={"size":8}),
@@ -184,17 +212,18 @@ layout = html.Div([
 @app.callback(
     Output(component_id="main-kpi",component_property="figure"),
     Output(component_id="debt-kpi",component_property="figure"),
-    Output(component_id="info",component_property="children"),
+    # Output(component_id="info",component_property="children"),
     Output(component_id="value-kpi",component_property="figure"),
-    Output(component_id="per-kpi",component_property="figure"),
+    Output(component_id="liquid-chart",component_property="figure"),
     Output(component_id="pie-chart",component_property="figure"),
     Output(component_id="line-chart",component_property="figure"),
-    Input(component_id="radios", component_property="value"),
+    # Input(component_id="radios", component_property="value"),
+    Input(component_id="info", component_property="children"),
     State(component_id="df-store", component_property="data"),
     State(component_id="debt-store", component_property="data")
 )
-def update_graph(asset,df, debt):
-
+def update_graph(_, df, debt):
+    asset = "Total"
     # convert to dataframe
     df = pd.DataFrame(df)
     debt = pd.DataFrame(debt)
@@ -217,8 +246,17 @@ def update_graph(asset,df, debt):
     # generate charts
     main_fig = generate_indicator(df_latest)
     debt_fig = generate_debt_indicator(debt_latest)
-    value_fig, per_fig = generate_sub_indicator(df_latest, asset)
+    value_fig = generate_sub_indicator(df_latest, asset)
+    bar_fig = generate_bar(df_latest)
     pie_fig = generate_pie(df_latest_asset)
     line_fig = generate_line(df_asset)
 
-    return main_fig, debt_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig
+    return main_fig, debt_fig ,value_fig, bar_fig, pie_fig, line_fig
+
+
+@app.callback(
+    Output(component_id="info", component_property="children"),
+    Input(component_id="liquid-chart", component_property="clickData")
+)
+def filter_graph(click):
+    print(click)

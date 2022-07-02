@@ -19,7 +19,12 @@ class ExtractInvestmentView(APIView):
     def get(self, request, format=None):
 
         # get current portfolio
-        portfolio = requests.get("http://127.0.0.1:8000/api/open")
+        try:
+            portfolio = requests.get("http://127.0.0.1:8000/api/open")
+        except:
+            print("Investment Connection Failed, unable to extract Investment data")
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+            
         portfolio = pd.DataFrame.from_dict(portfolio.json())
 
         # get ticker information

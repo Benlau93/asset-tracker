@@ -119,13 +119,26 @@ def generate_line(df):
 
     # sum value
     df = df.sort_values("DATE").groupby("DATE").sum()[["VALUE"]].reset_index()
+    df["CHANGE"] = df.shift(1)["VALUE"]
+    df["CHANGE"] = df["VALUE"] - df["CHANGE"]
+    
 
     # trend of asset value
-    line_fig = make_subplots(rows=2, cols = 1, subplot_titles = ["Asset Trends","% Change Trends"], row_heights=[0.7,0.3])
+    line_fig = make_subplots(rows=2, cols = 1, subplot_titles = ["Asset Trends","% Change Trends"], row_heights=[0.8,0.2], vertical_spacing=0)
 
     line_fig.add_trace(
         go.Scatter(x=df["DATE"], y = df["VALUE"], mode="lines+markers+text", name = "Asset"), row=1, col=1
     )
+
+    # add bar
+    # define bar color
+    bar_colors = ["crimson" if change <0 else "#2E8B57" for change in df["CHANGE"].values]
+
+    line_fig.add_trace(
+        go.Bar(x=df["DATE"], y=df["CHANGE"], name="Change", marker_color = bar_colors, opacity=0.5),
+        row=1, col=1
+    )
+
 
     # add line to monitor yearly trend
     df_year = df[df["DATE"].dt.month==12].copy()
@@ -159,7 +172,7 @@ def generate_line(df):
     line_fig.update_yaxes(row=2,col=1, tickformat = ".0%", zeroline=True, zerolinecolor="red", zerolinewidth=0.5)
 
     line_fig.update_layout(
-                            height=800,
+                            height=1000,
                             showlegend=False,
                             template = TEMPLATE)
 

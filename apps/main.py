@@ -8,7 +8,7 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 from dash import callback_context
 from app import app
-
+import datetime
 
 # define template used
 TEMPLATE = "plotly_white"
@@ -54,22 +54,17 @@ def generate_debt_indicator(df):
 
     return debt_fig
 
-def generate_sub_indicator(df, asset):
+def generate_sub_indicator(df):
 
     # calculate value and % 
     total_value = df["VALUE"].sum()
-
-    # if asset != "Total":
-    #     filtered_value = df[df["Liquidity"]==asset]["VALUE"].sum()
-    # else:
-    #     filtered_value = df["VALUE"].sum()
     
     # value figure
     value_fig = go.Figure()
     value_fig.add_trace(
         go.Indicator(mode="number",
                     value=total_value,
-                    title = f"{asset} Value",
+                    title = "Total Value",
                     number = dict(valueformat="$,.0f"))
     )
 
@@ -77,21 +72,6 @@ def generate_sub_indicator(df, asset):
         height = 250,
         template = TEMPLATE
     )
-
-    # # % indicator
-    # per_fig = go.Figure()
-    # per_fig.add_trace(
-    #     go.Indicator(mode="number",
-    #                 value = per,
-    #                 title = "% Total Value",
-    #                 number = dict(valueformat=".01%")
-    #     )
-    # )
-
-    # per_fig.update_layout(
-    #     height = 250,
-    #     template = TEMPLATE
-    # )
 
     return value_fig
 
@@ -146,6 +126,24 @@ def generate_line(df):
     line_fig.add_trace(
         go.Scatter(x=df["DATE"], y = df["VALUE"], mode="lines+markers+text", name = "Asset"), row=1, col=1
     )
+
+    # add line to monitor yearly trend
+    df_year = df[df["DATE"].dt.month==12].copy()
+    years = df_year["DATE"].dt.year.unique()
+    green = 222
+    for i in range(len(years)):
+
+        # determine variables
+        year = years[i]
+        value = df_year[df_year["DATE"].dt.year==year]["VALUE"].iloc[0]
+        color = f"rgb(100,{green},200)"
+        green = max(0,green-50)
+        text = f"{year+1}, ${str(round(value))}"
+
+        # plot lines
+        line_fig.add_hline(y=value, line_dash="dash", annotation_text=text, line_color=color)
+    
+    # update axis
     line_fig.update_xaxes(row=1,col=1,showgrid=False, visible=False)
     line_fig.update_yaxes(row=1,col=1, tickformat = "$,.0f", showgrid=False)
 
@@ -176,7 +174,7 @@ layout = html.Div([
             dbc.Col([dcc.Graph(id="debt-kpi")], width = 5),
         ], justify="center"),
         dbc.Row([
-            dbc.Card(html.H3(id="info", children="Asset Breakdown",className="text-center text-light bg-dark"), body=True, color="dark")
+            dbc.Card(html.H3(id="info",className="text-center text-light bg-dark"), body=True, color="dark")
         ]),
         dbc.Row([
             dbc.Col([dcc.Graph(id="value-kpi")], width = {"size":6, "offset":3}, align="center"),
@@ -187,6 +185,9 @@ layout = html.Div([
                 dbc.Col([dcc.Graph(id="pie-chart")], width = 4)
         ], justify="center"),
         dbc.Row([
+            dbc.Card(html.H3(children="Trend Analysis",className="text-center text-light bg-dark"), body=True, color="dark")
+        ]),
+        dbc.Row([
             dbc.Col([dcc.Graph(id="line-chart")], width={"size":12}),
         ])
     ])
@@ -196,116 +197,61 @@ layout = html.Div([
 @app.callback(
     Output(component_id="main-kpi",component_property="figure"),
     Output(component_id="debt-kpi",component_property="figure"),
-    # Output(component_id="liquid-chart",component_property="figure"),
-    Output(component_id="line-chart",component_property="figure"),
-    Input(component_id="info", component_property="children"),
-    State(component_id="df-store", component_property="data"),
-    State(component_id="debt-store", component_property="data")
-)
-def update_graph(_, df, debt):
-    asset = "Total"
-    # convert to dataframe
-    df = pd.DataFrame(df)
-    debt = pd.DataFrame(debt)
-    
-    # get latest yearmonth df
-    latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
-    df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
-    debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
-
-    # filter
-    if asset != "Total":
-        df_latest_asset = df_latest[df_latest["Liquidity"]==asset].copy()
-        df_asset = df[df["Liquidity"]==asset].copy()
-    else:
-        df_latest_asset = df_latest.copy()
-        df_asset = df.copy()
-
-    # generate charts
-    main_fig = generate_indicator(df_latest)
-    debt_fig = generate_debt_indicator(debt_latest)
-    
-    line_fig = generate_line(df_asset)
-
-    return main_fig, debt_fig, line_fig
-
-
-@app.callback(
     Output(component_id="liquid-chart",component_property="figure"),
     Output(component_id="pie-chart",component_property="figure"),
     Output(component_id="value-kpi",component_property="figure"),
+    Output(component_id="line-chart",component_property="figure"),
+    Output(component_id="info",component_property="children"),
     Input(component_id="liquid-chart", component_property="clickData"),
     Input(component_id="pie-chart", component_property="clickData"),
     Input(component_id="reset-button", component_property="n_clicks"),
     State(component_id="df-store", component_property="data"),
+    State(component_id="debt-store", component_property="data")
 )
-def filter_graph(click_bar, click_pie, n_clicks, df):
-
-    title = "Total"
-    # get state
+def filter_graph(click_bar, click_pie, n_clicks, df, debt):
+    n_clicks = 0 if n_clicks ==None else n_clicks
+    title = "Total Asset"
+    # get triggered input
     changed_id = [p['prop_id'] for p in callback_context.triggered][0]
 
     # convert to dataframe
     df = pd.DataFrame(df)
+    df["DATE"] = pd.to_datetime(df["DATE"])
+    debt = pd.DataFrame(debt)
 
     # get latest yearmonth df
     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
-
+    debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
     
-    if click_bar != None:
+    # get initial state
+    if click_bar != None and "reset-button" not in changed_id:
         liquid = click_bar["points"][0]["y"]
-        df_filtered = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
     else:
-        df_filtered = df_latest.copy()
-    df_filtered_asset = df_latest.copy()
+        df_pie = df_latest.copy()
+    df_line = df.copy()
+    df_value = df_latest.copy()
 
+    # trigger filter based on what was clicked
     if "liquid-chart" in changed_id:
-        df_filtered = df_latest[df_latest["Liquidity"]==liquid].copy()
-        df_filtered_asset = df_filtered.copy()
+        
+        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_value = df_pie.copy()
+        df_line = df[df["Liquidity"]==liquid].copy()
         title = liquid
     elif "pie-chart" in changed_id:
         asset = click_pie["points"][0]["label"]
-        df_filtered_asset = df_latest[df_latest["Asset"]==asset].copy()
+        df_line = df[df["Asset"]==asset].copy()
+        df_value = df_latest[df_latest["Asset"]==asset].copy()
         title = asset
-    elif "reset-button" in changed_id:
-        df_filtered_asset = df_latest.copy()
-        df_filtered = df_latest.copy()
-
-    # if "reset-button" not in changed_id:
-
-    # if click_bar != None and click_pie !=None:
-    #     y = click_bar["points"][0]["y"]
-    #     df_latest = df_latest[df_latest["Liquidity"]==y].copy()
-
     
     # generate charts
+    main_fig = generate_indicator(df_latest)
+    debt_fig = generate_debt_indicator(debt_latest)
     bar_fig = generate_bar(df_latest)
-    pie_fig = generate_pie(df_filtered)
-    value_fig = generate_sub_indicator(df_filtered_asset, title)
+    pie_fig = generate_pie(df_pie)
+    value_fig = generate_sub_indicator(df_value)
+    line_fig = generate_line(df_line)
 
-    return bar_fig, pie_fig, value_fig
-
-# @app.callback(
-#     Output(component_id="value-kpi",component_property="figure"),
-#     Input(component_id="pie-chart", component_property="clickData"),
-#     State(component_id="df-store", component_property="data"),
-# )
-# def filter_pie(click_pie, df):
-#     label = "Total"
-#     # convert to dataframe
-#     df = pd.DataFrame(df)
-
-#     # get latest yearmonth df
-#     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
-#     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
-
-#     if click_pie != None:
-#         label = click_pie["points"][0]["label"]
-#         df_latest = df_latest[df_latest["Asset"]==label].copy()
-#         print(df_latest)
-
-#     # generate charts
-#     value_fig = generate_sub_indicator(df_latest, label)
-
-#     return value_fig
+    return main_fig, debt_fig, bar_fig, pie_fig, value_fig, line_fig, f"{title} Analysis"

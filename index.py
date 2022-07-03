@@ -61,6 +61,8 @@ def load_data():
     # drop yearmonth that is not complete
     yearmonth = df[df["Asset"]=="Savings"]["YEARMONTH"].unique()
     df = df[df["YEARMONTH"].isin(yearmonth)].copy()
+    # add liquidity
+    df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
 
     # load debt
     debt = requests.get("http://127.0.0.1:8001/api/debt")

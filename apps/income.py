@@ -133,10 +133,12 @@ def generate_yoy_trend(df, year, visible):
 
 
 def generate_bar(df):
+    # current month
+    num_month = df["YEARMONTH"].dt.month.max()
 
     # get average
     df_avg = df.groupby("YEARMONTH").sum()[["VALUE"]].reset_index()
-    df_avg["AVG"] = df_avg["VALUE"].mean()
+    df_avg["AVG"] = df_avg["VALUE"].sum() / num_month
     
     # split into cash and cpf
     cash = df[df["TYPE"].isin(BANK_TYPE)].copy()

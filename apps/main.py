@@ -6,8 +6,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 from dash.dependencies import Input, Output, State
+from dash import callback_context
 from app import app
-
+import datetime
 
 # define template used
 TEMPLATE = "plotly_white"
@@ -53,24 +54,17 @@ def generate_debt_indicator(df):
 
     return debt_fig
 
-def generate_sub_indicator(df, asset):
+def generate_sub_indicator(df):
 
     # calculate value and % 
     total_value = df["VALUE"].sum()
-
-    if asset != "Total":
-        filtered_value = df[df["Liquidity"]==asset]["VALUE"].sum()
-    else:
-        filtered_value = df["VALUE"].sum()
-
-    per = filtered_value / total_value
     
     # value figure
     value_fig = go.Figure()
     value_fig.add_trace(
         go.Indicator(mode="number",
-                    value=filtered_value,
-                    title = f"Total {asset} Value",
+                    value=total_value,
+                    title = "Total Value",
                     number = dict(valueformat="$,.0f"))
     )
 
@@ -79,22 +73,30 @@ def generate_sub_indicator(df, asset):
         template = TEMPLATE
     )
 
-    # % indicator
-    per_fig = go.Figure()
-    per_fig.add_trace(
-        go.Indicator(mode="number",
-                    value = per,
-                    title = "% Total Value",
-                    number = dict(valueformat=".01%")
-        )
+    return value_fig
+
+def generate_bar(df):
+    df_ = df.groupby("Liquidity").sum()[["VALUE"]].reset_index()
+    total = df_["VALUE"].sum()
+    df_["PER"] = df_["VALUE"] / total
+
+    # add figure
+    bar_fig = go.Figure()
+    bar_fig.add_trace(
+        go.Bar(x=df_["PER"], y=df_["Liquidity"], textposition="inside", texttemplate="%{x:.1%}", hovertemplate="%{y}: %{x:.1%}",orientation='h', name="Liquidity")
     )
 
-    per_fig.update_layout(
-        height = 250,
-        template = TEMPLATE
+    bar_fig.update_layout(
+        title="Distribution by Liquidity",
+        template=TEMPLATE,
+        height=500,
+        xaxis=dict(visible=False),
+        showlegend=False
     )
 
-    return value_fig, per_fig
+    return bar_fig
+    
+
 
 def generate_pie(df):
 
@@ -105,6 +107,7 @@ def generate_pie(df):
     )
     pie_fig.update_layout(title = "Distribution by Asset Class",
                         showlegend=False,
+                        height=500,
                         template=TEMPLATE)
 
 
@@ -123,6 +126,24 @@ def generate_line(df):
     line_fig.add_trace(
         go.Scatter(x=df["DATE"], y = df["VALUE"], mode="lines+markers+text", name = "Asset"), row=1, col=1
     )
+
+    # add line to monitor yearly trend
+    df_year = df[df["DATE"].dt.month==12].copy()
+    years = df_year["DATE"].dt.year.unique()
+    green = 222
+    for i in range(len(years)):
+
+        # determine variables
+        year = years[i]
+        value = df_year[df_year["DATE"].dt.year==year]["VALUE"].iloc[0]
+        color = f"rgb(100,{green},200)"
+        green = max(0,green-50)
+        text = f"{year+1}, ${str(round(value))}"
+
+        # plot lines
+        line_fig.add_hline(y=value, line_dash="dash", annotation_text=text, line_color=color)
+    
+    # update axis
     line_fig.update_xaxes(row=1,col=1,showgrid=False, visible=False)
     line_fig.update_yaxes(row=1,col=1, tickformat = "$,.0f", showgrid=False)
 
@@ -138,6 +159,7 @@ def generate_line(df):
     line_fig.update_yaxes(row=2,col=1, tickformat = ".0%", zeroline=True, zerolinecolor="red", zerolinewidth=0.5)
 
     line_fig.update_layout(
+                            height=800,
                             showlegend=False,
                             template = TEMPLATE)
 
@@ -148,34 +170,25 @@ def generate_line(df):
 layout = html.Div([
     dbc.Container([
         dbc.Row([
-            dbc.Col([dcc.Graph(id="main-kpi")], width = 4),
-            dbc.Col([dcc.Graph(id="debt-kpi")], width = 4),
-            dbc.Col([
-                    html.H6("Select Asset Class:"),
-                    dbc.RadioItems(
-                        id="radios",
-                        className="btn-group",
-                        inputClassName="btn-check",
-                        labelClassName="btn btn-outline-info",
-                        labelCheckedClassName="active",
-                        options=[
-                            {"label":"Total", "value":"Total"},
-                            {"label": "Liquid", "value": "Liquid"},
-                            {"label": "non-Liquid", "value": "non-Liquid"}
-                        ],
-                        value="Total")
-            ], width = 3, align="center"),
+            dbc.Col([dcc.Graph(id="main-kpi")], width = 5),
+            dbc.Col([dcc.Graph(id="debt-kpi")], width = 5),
         ], justify="center"),
         dbc.Row([
-            dbc.Card(html.H3(id="info", className="text-center text-light bg-dark"), body=True, color="dark")
+            dbc.Card(html.H3(id="info",className="text-center text-light bg-dark"), body=True, color="dark")
         ]),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="value-kpi")], width = 5),
-            dbc.Col([dcc.Graph(id="per-kpi")], width=5)
-        ], justify = "center"),
+            dbc.Col([dcc.Graph(id="value-kpi")], width = {"size":6, "offset":3}, align="center"),
+            dbc.Col([dbc.Button("Reset",id="reset-button",color="primary", style={"margin-top":10})],width={"size":3, "offset":0})
+        ]),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="line-chart")], width={"size":8}),
-            dbc.Col([dcc.Graph(id="pie-chart")], width = {"size":4})
+                dbc.Col([dcc.Graph(id="liquid-chart")], width=6, align="center"),
+                dbc.Col([dcc.Graph(id="pie-chart")], width = 4)
+        ], justify="center"),
+        dbc.Row([
+            dbc.Card(html.H3(children="Trend Analysis",className="text-center text-light bg-dark"), body=True, color="dark")
+        ]),
+        dbc.Row([
+            dbc.Col([dcc.Graph(id="line-chart")], width={"size":12}),
         ])
     ])
 ])
@@ -184,41 +197,61 @@ layout = html.Div([
 @app.callback(
     Output(component_id="main-kpi",component_property="figure"),
     Output(component_id="debt-kpi",component_property="figure"),
-    Output(component_id="info",component_property="children"),
-    Output(component_id="value-kpi",component_property="figure"),
-    Output(component_id="per-kpi",component_property="figure"),
+    Output(component_id="liquid-chart",component_property="figure"),
     Output(component_id="pie-chart",component_property="figure"),
+    Output(component_id="value-kpi",component_property="figure"),
     Output(component_id="line-chart",component_property="figure"),
-    Input(component_id="radios", component_property="value"),
+    Output(component_id="info",component_property="children"),
+    Input(component_id="liquid-chart", component_property="clickData"),
+    Input(component_id="pie-chart", component_property="clickData"),
+    Input(component_id="reset-button", component_property="n_clicks"),
     State(component_id="df-store", component_property="data"),
     State(component_id="debt-store", component_property="data")
 )
-def update_graph(asset,df, debt):
+def filter_graph(click_bar, click_pie, n_clicks, df, debt):
+    n_clicks = 0 if n_clicks ==None else n_clicks
+    title = "Total Asset"
+    # get triggered input
+    changed_id = [p['prop_id'] for p in callback_context.triggered][0]
 
     # convert to dataframe
     df = pd.DataFrame(df)
+    df["DATE"] = pd.to_datetime(df["DATE"])
     debt = pd.DataFrame(debt)
-    # add liquidity
-    df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
-    
+
     # get latest yearmonth df
     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
     debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
-
-    # filter
-    if asset != "Total":
-        df_latest_asset = df_latest[df_latest["Liquidity"]==asset].copy()
-        df_asset = df[df["Liquidity"]==asset].copy()
+    
+    # get initial state
+    if click_bar != None and "reset-button" not in changed_id:
+        liquid = click_bar["points"][0]["y"]
+        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
     else:
-        df_latest_asset = df_latest.copy()
-        df_asset = df.copy()
+        df_pie = df_latest.copy()
+    df_line = df.copy()
+    df_value = df_latest.copy()
 
+    # trigger filter based on what was clicked
+    if "liquid-chart" in changed_id:
+        
+        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_value = df_pie.copy()
+        df_line = df[df["Liquidity"]==liquid].copy()
+        title = liquid
+    elif "pie-chart" in changed_id:
+        asset = click_pie["points"][0]["label"]
+        df_line = df[df["Asset"]==asset].copy()
+        df_value = df_latest[df_latest["Asset"]==asset].copy()
+        title = asset
+    
     # generate charts
     main_fig = generate_indicator(df_latest)
     debt_fig = generate_debt_indicator(debt_latest)
-    value_fig, per_fig = generate_sub_indicator(df_latest, asset)
-    pie_fig = generate_pie(df_latest_asset)
-    line_fig = generate_line(df_asset)
+    bar_fig = generate_bar(df_latest)
+    pie_fig = generate_pie(df_pie)
+    value_fig = generate_sub_indicator(df_value)
+    line_fig = generate_line(df_line)
 
-    return main_fig, debt_fig, f"{asset} Asset Breakdown" ,value_fig, per_fig, pie_fig, line_fig
+    return main_fig, debt_fig, bar_fig, pie_fig, value_fig, line_fig, f"{title} Analysis"

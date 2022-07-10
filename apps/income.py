@@ -7,7 +7,6 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from dash.dependencies import Input, Output, State
 from app import app
-from dateutil.relativedelta import relativedelta
 from datetime import date
 
 

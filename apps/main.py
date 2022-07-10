@@ -8,7 +8,6 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 from dash import callback_context
 from app import app
-import datetime
 
 # define template used
 TEMPLATE = "plotly_white"

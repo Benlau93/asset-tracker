@@ -3,7 +3,7 @@ from dash import dcc
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 from app import app
-from apps import main, income
+from apps import main, income, tax
 from datetime import date
 import requests
 import pandas as pd
@@ -13,7 +13,8 @@ import pandas as pd
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        dbc.NavItem(dbc.NavLink("Income", href="/income"))
+        dbc.NavItem(dbc.NavLink("Income", href="/income")),
+        dbc.NavItem(dbc.NavLink("Tax", href="/tax"))
 
     ],
     brand="Asset Tracking",
@@ -102,6 +103,8 @@ app.layout = serve_layout
 def display_page(pathname):
     if pathname == "/income":
         layout = income.layout
+    elif pathname =="/tax":
+        layout = tax.layout
     else:
         layout = main.layout
 

@@ -222,7 +222,7 @@ layout = html.Div([
     State(component_id="debt-store", component_property="data")
 )
 def filter_graph(click_bar, click_pie, n_clicks, df, debt):
-    n_clicks = 0 if n_clicks ==None else n_clicks
+
     title = "Total Asset"
     # get triggered input
     changed_id = [p['prop_id'] for p in callback_context.triggered][0]
@@ -236,34 +236,38 @@ def filter_graph(click_bar, click_pie, n_clicks, df, debt):
     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
     debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
+
+    # get liquidity mapping
+    liquid_map = dict(df[["Asset","Liquidity"]].drop_duplicates().values)
     
     # get initial state
     if click_bar != None and "reset-button" not in changed_id:
         liquid = click_bar["points"][0]["y"]
-        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_barpie = df_latest[df_latest["Liquidity"]==liquid].copy()
     else:
-        df_pie = df_latest.copy()
+        df_barpie = df_latest.copy()
     df_line = df.copy()
     df_value = df_latest.copy()
 
     # trigger filter based on what was clicked
     if "liquid-chart" in changed_id:
         
-        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
-        df_value = df_pie.copy()
+        df_barpie = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_value = df_barpie.copy()
         df_line = df[df["Liquidity"]==liquid].copy()
         title = liquid
     elif "pie-chart" in changed_id:
         asset = click_pie["points"][0]["label"]
         df_line = df[df["Asset"]==asset].copy()
         df_value = df_latest[df_latest["Asset"]==asset].copy()
+        df_barpie = df_latest[df_latest["Liquidity"]==liquid_map[asset]].copy()
         title = asset
     
     # generate charts
     main_fig = generate_indicator(df_latest)
     debt_fig = generate_debt_indicator(debt_latest)
-    bar_fig = generate_bar(df_latest)
-    pie_fig = generate_pie(df_pie)
+    bar_fig = generate_bar(df_barpie)
+    pie_fig = generate_pie(df_barpie)
     value_fig = generate_sub_indicator(df_value)
     line_fig = generate_line(df_line)
 

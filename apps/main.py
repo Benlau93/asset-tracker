@@ -8,6 +8,7 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 from dash import callback_context
 from app import app
+import requests
 import datetime
 
 # define template used
@@ -181,7 +182,11 @@ def generate_line(df):
 
 
 layout = html.Div([
+    dcc.Location(id='refresh-url', refresh=True),
     dbc.Container([
+        dbc.Row([
+            dbc.Col(dbc.Button("Refresh",id="refresh-button",color="success",style={"margin-top":10,"margin-right":0}),width=2),
+        ], align="start", justify="end"),
         dbc.Row([
             dbc.Col([dcc.Graph(id="main-kpi")], width = 5),
             dbc.Col([dcc.Graph(id="debt-kpi")], width = 5),
@@ -191,8 +196,8 @@ layout = html.Div([
         ]),
         dbc.Row([
             dbc.Col([dcc.Graph(id="value-kpi")], width = {"size":6, "offset":3}, align="center"),
-            dbc.Col([dbc.Button("Reset",id="reset-button",color="primary", style={"margin-top":10})],width={"size":3, "offset":0})
-        ]),
+            dbc.Col([dbc.Button("Reset",id="reset-button",color="primary", style={"margin-top":10,"margin-right":0})],width={"size":2, "offset":1})
+        ], justify="center"),
         dbc.Row([
                 dbc.Col([dcc.Graph(id="liquid-chart")], width=6, align="center"),
                 dbc.Col([dcc.Graph(id="pie-chart")], width = 4)
@@ -205,6 +210,21 @@ layout = html.Div([
         ])
     ])
 ])
+
+
+
+@app.callback(
+    Output(component_id = "refresh-url", component_property = "href"),
+    Input(component_id="refresh-button", component_property="n_clicks"),
+    prevent_initial_call=True
+)
+def refresh_data(n_clicks):
+
+    # extract pdf and investment if any
+    pdf_extraction = requests.get("http://127.0.0.1:8001/api/extract")
+    investment_extraction = requests.get("http://127.0.0.1:8001/api/extract-investment")
+
+    return "http://127.0.0.1:8051/refresh"
 
 
 @app.callback(

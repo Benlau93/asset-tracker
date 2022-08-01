@@ -119,7 +119,9 @@ def generate_pie(df):
 def generate_line(df):
 
     # sum value
-    df = df.sort_values("DATE").groupby("DATE").sum()[["VALUE"]].reset_index()
+    df = df.groupby("YEARMONTH").sum()[["VALUE"]].reset_index()
+    df["DATE"] = pd.to_datetime(df["YEARMONTH"], format="%b %Y")
+    df = df.sort_values("DATE")
     df["CHANGE"] = df.shift(1)["VALUE"]
     df["CHANGE"] = df["VALUE"] - df["CHANGE"]
     

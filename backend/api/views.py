@@ -8,8 +8,8 @@ from dateutil.relativedelta import relativedelta
 import os
 
 from .pdf_extraction import bank_extraction, cpf_extraction, bank_extraction_historical, cpf_extraction_historical
-from .models import CPFModel, BankModel, InvestmentModel, DebtModel
-from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer
+from .models import CPFModel, BankModel, InvestmentModel, DebtModel, TaxModel, ReliefModel
+from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer, TaxSerializer, ReliefSerializer
 
 # Create your views here.
 
@@ -366,5 +366,20 @@ class DebtView(APIView): # currently only works for 1 debt
 
                 
 
+class TaxView(APIView):
+    tax_serializer = TaxSerializer
 
+    def get(self, request, format=None):
+        data = TaxModel.objects.all()
+        serializer = self.tax_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ReliefView(APIView):
+    relief_serializer = ReliefSerializer
+
+    def get(self, request, format=None):
+        data = ReliefModel.objects.all()
+        serializer = self.relief_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 

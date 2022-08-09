@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import InvestmentModel, BankModel, CPFModel, DebtModel
+from .models import InvestmentModel, BankModel, CPFModel, DebtModel, TaxModel, ReliefModel
 
 class InvestmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,4 +20,16 @@ class CPFSerialzier(serializers.ModelSerializer):
 class DebtSerializer(serializers.ModelSerializer):
     class Meta:
         model = DebtModel
+        fields = "__all__"
+
+
+class TaxSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxModel
+        fields = "__all__"
+
+
+class ReliefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReliefModel
         fields = "__all__"

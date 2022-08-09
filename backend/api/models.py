@@ -39,3 +39,17 @@ class DebtModel(models.Model):
     REPAYMENT = models.FloatField(blank=False)
     INTEREST = models.FloatField(blank=False)
     REMAINING_VALUE = models.FloatField(blank=False)
+
+
+class TaxModel(models.Model):
+    YEAR = models.IntegerField(primary_key=True)
+    INCOME = models.FloatField(blank=False)
+    TAX_YEAR = models.FloatField(blank=False)
+    TAX_MONTH = models.FloatField(blank=False)
+
+
+class ReliefModel(models.Model):
+    ID = models.CharField(primary_key=True, max_length=100)
+    YEAR = models.IntegerField(blank=False)
+    RELIEF = models.CharField(blank=False ,max_length=50)
+    VALUE = models.FloatField(blank=False)

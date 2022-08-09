@@ -67,8 +67,14 @@ def load_data():
     debt = pd.DataFrame.from_dict(debt.json())
     debt["DATE"] = pd.to_datetime(debt["DATE"], format="%Y-%m-%d")
 
+    # load tax and relief
+    tax_df = requests.get("http://127.0.0.1:8001/api/tax")
+    tax_df = pd.DataFrame.from_dict(tax_df.json())
 
-    return df.to_dict(orient="records"), debt.to_dict(orient = "records"),bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records")
+    relief = requests.get("http://127.0.0.1:8001/api/relief")
+    relief = pd.DataFrame.from_dict(relief.json())
+
+    return df.to_dict(orient="records"), debt.to_dict(orient = "records"),bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records"), tax_df.to_dict(orient="records"), relief.to_dict(orient="records")
 
 
 
@@ -83,7 +89,9 @@ def serve_layout():
         dcc.Store(id="debt-store"),
         dcc.Store(id="bank-store"),
         dcc.Store(id="cpf-store"),
-        dcc.Store(id="investment-store")
+        dcc.Store(id="investment-store"),
+        dcc.Store(id="tax-store"),
+        dcc.Store(id="relief-store")
     ])
 app.layout = serve_layout
 
@@ -95,6 +103,8 @@ app.layout = serve_layout
     Output(component_id='bank-store', component_property='data'),
     Output(component_id='cpf-store', component_property='data'),
     Output(component_id='investment-store', component_property='data'),
+    Output(component_id='tax-store', component_property='data'),
+    Output(component_id='relief-store', component_property='data'),
     Input(component_id='url', component_property='pathname')
 )
 def display_page(pathname):
@@ -107,9 +117,9 @@ def display_page(pathname):
 
     # load data
     print("RETRIEVE DATA FROM BACKEND API")
-    df, debt, bank, cpf, investment = load_data()
+    df, debt, bank, cpf, investment, tax_df, relief = load_data()
 
-    return layout, df, debt, bank, cpf, investment
+    return layout, df, debt, bank, cpf, investment, tax_df, relief
 
 # start server
 if __name__ == '__main__':

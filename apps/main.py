@@ -8,6 +8,8 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 from dash import callback_context
 from app import app
+import requests
+import datetime
 
 # define template used
 TEMPLATE = "plotly_white"
@@ -117,7 +119,9 @@ def generate_pie(df):
 def generate_line(df):
 
     # sum value
-    df = df.sort_values("DATE").groupby("DATE").sum()[["VALUE"]].reset_index()
+    df = df.groupby("YEARMONTH").sum()[["VALUE"]].reset_index()
+    df["DATE"] = pd.to_datetime(df["YEARMONTH"], format="%b %Y")
+    df = df.sort_values("DATE")
     df["CHANGE"] = df.shift(1)["VALUE"]
     df["CHANGE"] = df["VALUE"] - df["CHANGE"]
     
@@ -180,7 +184,11 @@ def generate_line(df):
 
 
 layout = html.Div([
+    dcc.Location(id='refresh-url', refresh=True),
     dbc.Container([
+        dbc.Row([
+            dbc.Col(dbc.Button("Refresh",id="refresh-button",color="success",style={"margin-top":10,"margin-right":0}),width=2),
+        ], align="start", justify="end"),
         dbc.Row([
             dbc.Col([dcc.Graph(id="main-kpi")], width = 5),
             dbc.Col([dcc.Graph(id="debt-kpi")], width = 5),
@@ -190,8 +198,8 @@ layout = html.Div([
         ]),
         dbc.Row([
             dbc.Col([dcc.Graph(id="value-kpi")], width = {"size":6, "offset":3}, align="center"),
-            dbc.Col([dbc.Button("Reset",id="reset-button",color="primary", style={"margin-top":10})],width={"size":3, "offset":0})
-        ]),
+            dbc.Col([dbc.Button("Reset",id="reset-button",color="primary", style={"margin-top":10,"margin-right":0})],width={"size":2, "offset":1})
+        ], justify="center"),
         dbc.Row([
                 dbc.Col([dcc.Graph(id="liquid-chart")], width=6, align="center"),
                 dbc.Col([dcc.Graph(id="pie-chart")], width = 4)
@@ -204,6 +212,21 @@ layout = html.Div([
         ])
     ])
 ])
+
+
+
+@app.callback(
+    Output(component_id = "refresh-url", component_property = "href"),
+    Input(component_id="refresh-button", component_property="n_clicks"),
+    prevent_initial_call=True
+)
+def refresh_data(n_clicks):
+
+    # extract pdf and investment if any
+    pdf_extraction = requests.get("http://127.0.0.1:8001/api/extract")
+    investment_extraction = requests.get("http://127.0.0.1:8001/api/extract-investment")
+
+    return "http://127.0.0.1:8051/refresh"
 
 
 @app.callback(
@@ -221,7 +244,7 @@ layout = html.Div([
     State(component_id="debt-store", component_property="data")
 )
 def filter_graph(click_bar, click_pie, n_clicks, df, debt):
-    n_clicks = 0 if n_clicks ==None else n_clicks
+
     title = "Total Asset"
     # get triggered input
     changed_id = [p['prop_id'] for p in callback_context.triggered][0]
@@ -235,34 +258,38 @@ def filter_graph(click_bar, click_pie, n_clicks, df, debt):
     latest_yearmonth = df[df["DATE"] == df["DATE"].max()]["YEARMONTH"].unique()[0]
     df_latest = df[df["YEARMONTH"]==latest_yearmonth].copy()
     debt_latest = debt[debt["YEARMONTH"]==latest_yearmonth].copy()
+
+    # get liquidity mapping
+    liquid_map = dict(df[["Asset","Liquidity"]].drop_duplicates().values)
     
     # get initial state
     if click_bar != None and "reset-button" not in changed_id:
         liquid = click_bar["points"][0]["y"]
-        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_barpie = df_latest[df_latest["Liquidity"]==liquid].copy()
     else:
-        df_pie = df_latest.copy()
+        df_barpie = df_latest.copy()
     df_line = df.copy()
     df_value = df_latest.copy()
 
     # trigger filter based on what was clicked
     if "liquid-chart" in changed_id:
         
-        df_pie = df_latest[df_latest["Liquidity"]==liquid].copy()
-        df_value = df_pie.copy()
+        df_barpie = df_latest[df_latest["Liquidity"]==liquid].copy()
+        df_value = df_barpie.copy()
         df_line = df[df["Liquidity"]==liquid].copy()
         title = liquid
     elif "pie-chart" in changed_id:
         asset = click_pie["points"][0]["label"]
         df_line = df[df["Asset"]==asset].copy()
         df_value = df_latest[df_latest["Asset"]==asset].copy()
+        df_barpie = df_latest[df_latest["Liquidity"]==liquid_map[asset]].copy()
         title = asset
     
     # generate charts
     main_fig = generate_indicator(df_latest)
     debt_fig = generate_debt_indicator(debt_latest)
-    bar_fig = generate_bar(df_latest)
-    pie_fig = generate_pie(df_pie)
+    bar_fig = generate_bar(df_barpie)
+    pie_fig = generate_pie(df_barpie)
     value_fig = generate_sub_indicator(df_value)
     line_fig = generate_line(df_line)
 

@@ -285,7 +285,16 @@ class BankView(APIView):
         serializer = self.bank_serializer(data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-class DebtView(APIView): # currently only works for 1 debt
+class DebtView(APIView): 
+    debt_serializer = DebtSerializer
+
+    def get(self, request, format=None):
+        data = DebtModel.objects.all()
+        serializer = self.debt_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+            
+
+class DebtRefreshView(APIView): # currently only works for 1 debt
     debt_serializer = DebtSerializer
 
     def get(self, request, format=None):
@@ -358,13 +367,5 @@ class DebtView(APIView): # currently only works for 1 debt
 
             print("Refreshed Remaining Debt Value ...")
 
-            # re-query db and return db
-            data = DebtModel.objects.all()
-            serializer = self.debt_serializer(data, many=True)
-
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-                
-
-
+            return Response(status=status.HTTP_200_OK)
 

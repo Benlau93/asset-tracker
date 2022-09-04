@@ -346,8 +346,6 @@ def generate_yoy_change(df, curr_year):
 
     return yoy_change_fig, avg_change_fig
 
-    
-
 layout = html.Div([
     dbc.Container([
         dbc.Row([
@@ -374,6 +372,23 @@ layout = html.Div([
                         value="All")
             ], width=2)
         ], align="center", justify="center", style={"margin-top":10}),
+        html.Br(),
+        dbc.Row([
+            dbc.Col([html.H5("Employer Contribution:")],width=3),
+            dbc.Col(
+                    dbc.RadioItems(
+                        id="employer-radios",
+                        className="btn-group",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-primary",
+                        labelCheckedClassName="active",
+                        options=[
+                            {"label": "True", "value": "True"},
+                            {"label": "False", "value": "False"}
+                        ],
+                        value="True")
+                , width=2)
+        ], align="center", justify="center"),
         dbc.Row([
             dbc.Card(html.H3("Income Analysis", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
@@ -434,14 +449,16 @@ layout = html.Div([
     Input(component_id="year-selection",component_property="value"),
     Input(component_id="type-radios", component_property="value"),
     Input(component_id="visible-radios", component_property="value"),
+    Input(component_id="employer-radios", component_property="value"),
     State(component_id="bank-store", component_property="data"),
     State(component_id="cpf-store", component_property="data")
 )
-def update_graph(year,type, visible,bank, cpf):
+def update_graph(year,type, visible, employer,bank, cpf):
 
     # process selector
     year = int(year)
     type_map = {"CPF":CPF_TYPE, "Cash":BANK_TYPE , "All":BANK_TYPE + CPF_TYPE}
+    employer_ref = ["A"] if employer == "True" else ["A","B"]
 
     # convert to dataframe
     bank = pd.DataFrame(bank)
@@ -451,13 +468,25 @@ def update_graph(year,type, visible,bank, cpf):
     bank_income = bank[bank["BANK_TYPE"].isin(BANK_TYPE)].drop(["DATE","ID","HISTORICAL"], axis=1).rename({"BANK_TYPE":"TYPE"},axis=1) # filter to income
     
     # process cpf
-    cpf_income = cpf[(cpf["CODE"]=="CON") & (cpf["REF"].isin(["A","B"]))].drop(["DATE","REF","CODE","ID","HISTORICAL"], axis=1).copy() # filter to cpf contribution from dsta income
-    cpf_income = cpf_income.groupby("YEARMONTH").sum().reset_index() # combine REF A and B
+    cpf_income = cpf[(cpf["CODE"]=="CON") & (cpf["REF"].isin(employer_ref))].drop(["DATE","REF","CODE","ID","HISTORICAL"], axis=1).copy() # filter to cpf contribution from dsta income
+    cpf_income = cpf_income.groupby("YEARMONTH").sum().reset_index()
     cpf_income = cpf_income.melt(id_vars=["YEARMONTH"], value_name = "VALUE", var_name = "TYPE")
 
     # combine both sources
     income = pd.concat([bank_income, cpf_income], sort=True, ignore_index=True)
     income["YEARMONTH"] = pd.to_datetime(income["YEARMONTH"], format="%b %Y")
+
+    # handle employer contribution
+    if employer == "False":
+        def remove_employer(row):
+            if row["TYPE"]=="Salary":
+                new_value = row["VALUE"]
+            else:
+                new_value = round(row["VALUE"] * 20/37,2)
+            
+            return new_value
+
+        income["VALUE"] = income.apply(remove_employer, axis=1)
 
     # filters
     income_year = income[income["YEARMONTH"].dt.year==year].copy()

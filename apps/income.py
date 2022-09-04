@@ -458,7 +458,7 @@ def update_graph(year,type, visible, employer,bank, cpf):
     # process selector
     year = int(year)
     type_map = {"CPF":CPF_TYPE, "Cash":BANK_TYPE , "All":BANK_TYPE + CPF_TYPE}
-    employer_ref = ["A"] if employer == "True" else ["A","B"]
+    employer_ref = ["A","B"] if employer == "True" else ["A"]
 
     # convert to dataframe
     bank = pd.DataFrame(bank)

@@ -308,7 +308,7 @@ class DebtRefreshView(APIView): # currently only works for 1 debt
         if len(df[df["YEARMONTH"]==current]) > 0:
             # debt is updated, return dataframe
             print("No Further Debt Refresh Needed ...")
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_200_OK)
 
         else:
             # update debt model

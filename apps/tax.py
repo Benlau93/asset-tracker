@@ -74,14 +74,19 @@ def generate_indicators(df):
 # relief table
 def generate_relief_table(df):
     df = df.drop(["ID","YEAR"], axis=1).copy()
-    df = df.sort_values("RELIEF")
     df.columns = df.columns.str.capitalize()
 
-    money = dash_table.FormatTemplate.money(2)
+    # get total relief
+    total = df["Value"].sum()
+    df = pd.concat([df, pd.DataFrame({"Relief":["Total: "],"Value":[total]})], sort=True, ignore_index=True)
 
+    # sort
+    df = df.sort_values("Value")
+    
     # table
+    money = dash_table.FormatTemplate.money(2)
     table_fig = dash_table.DataTable(
-        id="tax-table",
+        id="relief-table",
         columns = [
             dict(id="Relief", name="Relief"),
             dict(id="Value", name="Value", type="numeric", format=money),
@@ -89,12 +94,32 @@ def generate_relief_table(df):
 
         data=df.to_dict('records'),
         sort_action="native",
-        # row_selectable='single',
+        style_data= {"border":"none"},
+        style_header = {'display': 'none'},
         style_cell={
         'height': 'auto',
-        'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
-        'whiteSpace': 'normal'},
-        style_table={'overflowX': 'scroll'},
+        'whiteSpace': 'normal','textAlign': 'left',"font-size":"28px"},
+        style_data_conditional=(
+            [
+
+            {
+                "if":{
+                    "filter_query":"{Relief} = 'Total: '",
+                    "column_id":"Relief"
+                },
+                "textAlign":"right"
+            },
+            {
+                "if":{
+                    "filter_query":"{Relief} = 'Total: '"
+                },
+                "color":"#DC143C",
+                "font-style":"italic",
+                "font-weight":"bold",
+                "font-size":"32px"
+            }
+            ]
+        ),
         style_as_list_view=True,
         page_action="native",
         page_current= 0,
@@ -125,11 +150,20 @@ layout = html.Div([
             dbc.Col([dcc.Graph(id="tax-sub-kpi")], width=10)
         ], justify="center"),
         dbc.Row([
-            dbc.Card(html.H3("Breakdown of Reliefs", className="text-center text-primary bg-light"), body=True, color="light")
+            dbc.Card(html.H3("Tax Reliefs", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
         dbc.Row([
-            dbc.Col(id="tax-table",width={"size":6}, style={"margin-top":50})
+            dbc.Col(id="relief-table-container",width={"size":6}, style={"margin-top":20})
         ], align="center", justify="center"),
+        html.Hr(),
+        html.Br(),
+        dbc.Row([
+            dbc.Col(html.H2("Chargeable Income : "), width={"size":4,"offset":2}),
+            dbc.Col(html.H2(id="eq-str"), width=4)
+        ]),
+        dbc.Row([dbc.Col(html.H2(id="charge-income-str"), width = {"size":4,"offset":6})]),
+        html.Br(),
+        html.Hr()
     ])
 ])
 
@@ -137,7 +171,9 @@ layout = html.Div([
 @app.callback(
     Output(component_id="tax-main-kpi", component_property="figure"),
     Output(component_id="tax-sub-kpi", component_property="figure"),
-    Output(component_id="tax-table", component_property="children"),
+    Output(component_id="relief-table-container", component_property="children"),
+    Output(component_id="eq-str", component_property="children"),
+    Output(component_id="charge-income-str", component_property="children"),
     Input(component_id="tax-year", component_property="value"),
     State(component_id="tax-store", component_property="data"),
     State(component_id="relief-store", component_property="data")
@@ -148,7 +184,7 @@ def update_figures(year, tax_df, relief):
     # get tax for the year
     tax_df = pd.DataFrame(tax_df)
     tax_df = tax_df[tax_df["YEAR"]==year].copy()
-
+    print(tax_df)
     # get relief for the year
     relief = pd.DataFrame(relief)
     relief = relief[relief["YEAR"]==year].copy()
@@ -157,4 +193,11 @@ def update_figures(year, tax_df, relief):
     main_kpi_fig, kpi_fig = generate_indicators(tax_df)
     table_fig = generate_relief_table(relief)
 
-    return main_kpi_fig, kpi_fig, table_fig
+    # get chargeable income
+    total_income = tax_df["INCOME"].iloc[0]
+    total_rebate = relief["VALUE"].sum()
+    chargeable_income = total_income - total_rebate
+    eq_str = "${:,} - ${:,}".format(total_income, total_rebate)
+    charge_income_str = "= ${:,}".format(chargeable_income)
+
+    return main_kpi_fig, kpi_fig, table_fig, eq_str, charge_income_str

@@ -225,6 +225,7 @@ def refresh_data(n_clicks):
     # extract pdf and investment if any
     pdf_extraction = requests.get("http://127.0.0.1:8001/api/extract")
     investment_extraction = requests.get("http://127.0.0.1:8001/api/extract-investment")
+    debt_refresh = requests.get("http://127.0.0.1:8001/api/debt-refresh")
 
     return "http://127.0.0.1:8051/refresh"
 

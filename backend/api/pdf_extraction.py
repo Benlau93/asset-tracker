@@ -75,7 +75,7 @@ def bank_extraction():
                 # DSTA salary
                 if pdf_text[i] == "DSTA":
                     try:
-                        value = float(pdf_text[i +2].replace(",",""))
+                        value = float(pdf_text[i +3].replace(",",""))
                         BANK_TYPE = "Salary"
                     except:
                         continue

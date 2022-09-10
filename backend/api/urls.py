@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ExtractInvestmentView, PDFExtractionView, CPFView, BankView, InvestmentView, DebtView, HistoricalExtractionView, TaxView, ReliefView
+from .views import ExtractInvestmentView, PDFExtractionView, CPFView, BankView, InvestmentView, DebtView, HistoricalExtractionView, TaxView, ReliefView, DebtRefreshView
 
 urlpatterns = [
     path("extract-investment", ExtractInvestmentView.as_view()),
@@ -10,5 +10,6 @@ urlpatterns = [
     path("investment",InvestmentView.as_view()),
     path("debt", DebtView.as_view()),
     path("tax",TaxView.as_view()),
-    path("relief", ReliefView.as_view())
+    path("relief", ReliefView.as_view()),
+    path("debt-refresh", DebtRefreshView.as_view())
 ]

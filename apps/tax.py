@@ -10,6 +10,7 @@ from dash.dependencies import Input, Output, State
 from app import app
 from datetime import date
 from dash.dash_table.Format import Format,Scheme
+import os
 
 # define template used
 TEMPLATE = "plotly_white"
@@ -17,6 +18,9 @@ TEMPLATE = "plotly_white"
 # define variables
 YEAR = date.today().year
 
+# import tax rate
+tax_rate = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend","Tax Rate.csv"))
+tax_rate = tax_rate.sort_values("ORDER")
 
 # kpi
 def generate_indicators(df):
@@ -128,6 +132,49 @@ def generate_relief_table(df):
 
     return table_fig
 
+# waterfall chart
+def generate_waterfall(chargeable_income):
+    tax_rate["CUMSUM"] = tax_rate["TAX_BRACKET"].cumsum()
+
+    # get tax payable breakdown
+    tax_payable = tax_rate[tax_rate["CUMSUM"]<=chargeable_income].copy()
+    if len(tax_payable) == 0: # handle year when no tax payable
+        tax_payable = tax_rate[tax_rate["ORDER"]==1].copy()
+
+    remaining = chargeable_income - tax_payable["CUMSUM"].iloc[-1]
+    if remaining > 0:
+        _ = tax_rate[tax_rate["ORDER"] == tax_payable["ORDER"].max() + 1].copy()
+        _["TAX_BRACKET"] = remaining
+        tax_payable = pd.concat([tax_payable,_], sort = True, ignore_index=True).sort_values("ORDER")
+    tax_payable["PAYABLE"] = tax_payable["TAX_BRACKET"] * tax_payable["RATE"]
+
+    # generate waterfall
+    tax_payable["x"] = tax_payable.apply(lambda row: "${:,.0f} ({:.1%})".format(row["TAX_BRACKET"], row["RATE"]), axis=1)
+    tax_payable["text"] = tax_payable["PAYABLE"].map(lambda x: "+ ${:,.2f}".format(x))
+    tax_payable["measure"] = "relative"
+
+    # add total
+    total_tax = tax_payable["PAYABLE"].sum()
+    total = pd.DataFrame({"x":["Total"],"PAYABLE":[0], "text":["${:,.2f}".format(total_tax)], "measure":["total"]})
+    tax_payable = pd.concat([tax_payable, total], sort=True, ignore_index=True, join="inner")
+
+    waterfall_fig = go.Figure()
+    waterfall_fig.add_trace(
+        go.Waterfall(x = tax_payable["x"], y = tax_payable["PAYABLE"], text = tax_payable["text"],measure = tax_payable["measure"], textposition="outside",name="Tax")
+    )
+
+    # update layout
+    waterfall_fig.update_layout(
+        title = "Tax Payable by Tax Bracket",
+        showlegend=False,
+        template = TEMPLATE,
+        height = 500,
+        yaxis = dict(showgrid=False, visible=False)
+    )
+
+    return waterfall_fig
+
+
 
 layout = html.Div([
     dbc.Container([
@@ -153,17 +200,20 @@ layout = html.Div([
             dbc.Card(html.H3("Tax Reliefs", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
         dbc.Row([
-            dbc.Col(id="relief-table-container",width={"size":6}, style={"margin-top":20})
+            dbc.Col(id="relief-table-container",width={"size":8}, style={"margin-top":20})
         ], align="center", justify="center"),
         html.Hr(),
         html.Br(),
         dbc.Row([
-            dbc.Col(html.H2("Chargeable Income : "), width={"size":4,"offset":2}),
-            dbc.Col(html.H2(id="eq-str"), width=4)
+            dbc.Col(html.H2("Chargeable Income : ", style={"font-style": "italic"}), width={"size":4,"offset":2}),
+            dbc.Col(html.H2(id="eq-str"), style={"font-style": "italic"}, width=4)
         ]),
-        dbc.Row([dbc.Col(html.H2(id="charge-income-str"), width = {"size":4,"offset":6})]),
+        dbc.Row([dbc.Col(html.H2(id="charge-income-str", style={"font-style": "italic","text-decoration": "underline"}), width = {"size":4,"offset":6})]),
         html.Br(),
-        html.Hr()
+        html.Hr(),
+        dbc.Row(
+            dbc.Col(dcc.Graph(id="waterfall-tax"), width=8)
+        , align="center", justify="center")
     ])
 ])
 
@@ -174,6 +224,7 @@ layout = html.Div([
     Output(component_id="relief-table-container", component_property="children"),
     Output(component_id="eq-str", component_property="children"),
     Output(component_id="charge-income-str", component_property="children"),
+    Output(component_id="waterfall-tax", component_property="figure"),
     Input(component_id="tax-year", component_property="value"),
     State(component_id="tax-store", component_property="data"),
     State(component_id="relief-store", component_property="data")
@@ -184,15 +235,15 @@ def update_figures(year, tax_df, relief):
     # get tax for the year
     tax_df = pd.DataFrame(tax_df)
     tax_df = tax_df[tax_df["YEAR"]==year].copy()
-    print(tax_df)
+
     # get relief for the year
     relief = pd.DataFrame(relief)
     relief = relief[relief["YEAR"]==year].copy()
-    print(relief)
+
     # generate chart
     main_kpi_fig, kpi_fig = generate_indicators(tax_df)
     table_fig = generate_relief_table(relief)
-
+    
     # get chargeable income
     total_income = tax_df["INCOME"].iloc[0]
     total_rebate = relief["VALUE"].sum()
@@ -200,4 +251,7 @@ def update_figures(year, tax_df, relief):
     eq_str = "${:,} - ${:,}".format(total_income, total_rebate)
     charge_income_str = "= ${:,}".format(chargeable_income)
 
-    return main_kpi_fig, kpi_fig, table_fig, eq_str, charge_income_str
+    # generate waterfall chart
+    waterfall_fig = generate_waterfall(chargeable_income)
+
+    return main_kpi_fig, kpi_fig, table_fig, eq_str, charge_income_str, waterfall_fig

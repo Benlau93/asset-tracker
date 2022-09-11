@@ -1,10 +1,9 @@
 from dash import html
 from dash import dcc
 import dash_bootstrap_components as dbc
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output
 from app import app
-from apps import main, income, tax
-from datetime import date
+from apps import main, income, tax, taxprojection
 import requests
 import pandas as pd
 
@@ -112,6 +111,8 @@ def display_page(pathname):
         layout = income.layout
     elif pathname =="/tax":
         layout = tax.layout
+    elif pathname == "/tax-projection":
+        layout =  taxprojection.layout
     else:
         layout = main.layout
 

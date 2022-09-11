@@ -173,6 +173,7 @@ def generate_waterfall(chargeable_income):
     return waterfall_fig
 
 
+
 layout = html.Div([
     dbc.Container([
         dbc.Row([
@@ -183,46 +184,46 @@ layout = html.Div([
                     options = [{"label":y, "value":y} for y in range(YEAR-1,2018,-1)],
                     value = YEAR -1
             )], width=2),
-            dbc.Col(dbc.Button("Tax Projection",href="http://127.0.0.1:8051/tax-projection",color="info"),width={"size":2,"offset":2})
+            dbc.Col(dbc.Button("Historical Tax",href="http://127.0.0.1:8051/tax",color="info"),width={"size":2,"offset":2})
         ], style={"margin-top":10}),
         dbc.Row([
             dbc.Card(html.H3("Income Tax Assessment", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="tax-main-kpi")], width=6)
+            dbc.Col([dcc.Graph(id="project-main-kpi")], width=6)
         ], justify="center"),
         dbc.Row([
-            dbc.Col([dcc.Graph(id="tax-sub-kpi")], width=10)
+            dbc.Col([dcc.Graph(id="project-sub-kpi")], width=10)
         ], justify="center"),
         dbc.Row([
             dbc.Card(html.H3("Tax Reliefs", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
         dbc.Row([
-            dbc.Col(id="relief-table-container",width={"size":8}, style={"margin-top":20})
+            dbc.Col(id="project-table-container",width={"size":8}, style={"margin-top":20})
         ], align="center", justify="center"),
         html.Hr(),
         html.Br(),
         dbc.Row([
             dbc.Col(html.H2("Chargeable Income : ", style={"font-style": "italic"}), width={"size":4,"offset":2}),
-            dbc.Col(html.H2(id="eq-str"), style={"font-style": "italic"}, width=4)
+            dbc.Col(html.H2(id="project-eq-str"), style={"font-style": "italic"}, width=4)
         ]),
-        dbc.Row([dbc.Col(html.H2(id="charge-income-str", style={"font-style": "italic","text-decoration": "underline"}), width = {"size":4,"offset":6})]),
+        dbc.Row([dbc.Col(html.H2(id="project-charge-income-str", style={"font-style": "italic","text-decoration": "underline"}), width = {"size":4,"offset":6})]),
         html.Br(),
         html.Hr(),
         dbc.Row(
-            dbc.Col(dcc.Graph(id="waterfall-tax"), width=8)
+            dbc.Col(dcc.Graph(id="waterfall-project"), width=8)
         , align="center", justify="center")
     ])
 ])
 
 
 @app.callback(
-    Output(component_id="tax-main-kpi", component_property="figure"),
-    Output(component_id="tax-sub-kpi", component_property="figure"),
-    Output(component_id="relief-table-container", component_property="children"),
-    Output(component_id="eq-str", component_property="children"),
-    Output(component_id="charge-income-str", component_property="children"),
-    Output(component_id="waterfall-tax", component_property="figure"),
+    Output(component_id="project-main-kpi", component_property="figure"),
+    Output(component_id="project-sub-kpi", component_property="figure"),
+    Output(component_id="project-table-container", component_property="children"),
+    Output(component_id="project-eq-str", component_property="children"),
+    Output(component_id="project-charge-income-str", component_property="children"),
+    Output(component_id="waterfall-project", component_property="figure"),
     Input(component_id="tax-year", component_property="value"),
     State(component_id="tax-store", component_property="data"),
     State(component_id="relief-store", component_property="data")

@@ -69,7 +69,7 @@ class ExtractInvestmentView(APIView):
                 # save historical data to csv
                 serializer = self.investment_serializer(active, many=True)
                 active_df = pd.DataFrame.from_dict(serializer.data.json())
-                active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
+                active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
             except:
                 pass
 
@@ -169,11 +169,11 @@ class HistoricalExtractionView(APIView):
     def get(self, request, format=None):
         
         # read investment historical data
-        investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
+        investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
         investment_hist["DATE"] = pd.to_datetime(investment_hist["DATE"])
 
         # read initial debt data
-        debt_hist =  pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\debt","debt.csv"))
+        debt_hist =  pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\debt","debt.csv"))
         debt_hist["DATE"] = pd.to_datetime(debt_hist["DATE"])
 
         # pdf extraction of cpf and bank historical data

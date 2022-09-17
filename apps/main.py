@@ -10,6 +10,7 @@ from dash import callback_context
 from app import app
 import requests
 from datetime import date
+from dash import callback_context
 
 # define template used
 TEMPLATE = "plotly_white"
@@ -182,7 +183,6 @@ def generate_line(df):
 
 
 layout = html.Div([
-    dcc.Location(id='refresh-url', refresh=True),
     dbc.Container([
         dbc.Row([
             dbc.Col(dbc.Button("Refresh",id="refresh-button",color="success",style={"margin-top":10,"margin-right":0}),width=2),
@@ -214,18 +214,20 @@ layout = html.Div([
 
 
 @app.callback(
-    Output(component_id = "refresh-url", component_property = "href"),
+    Output(component_id = "url", component_property = "pathname"),
     Input(component_id="refresh-button", component_property="n_clicks"),
     prevent_initial_call=True
 )
 def refresh_data(n_clicks):
+    changed_id = [p['prop_id'] for p in callback_context.triggered][0]
+    if "refresh-button" in changed_id:
 
-    # extract pdf and investment if any
-    pdf_extraction = requests.get("http://127.0.0.1:8001/api/extract")
-    investment_extraction = requests.get("http://127.0.0.1:8001/api/extract-investment")
-    debt_refresh = requests.get("http://127.0.0.1:8001/api/debt-refresh")
+        # extract pdf and investment if any
+        pdf_extraction = requests.get("http://127.0.0.1:8001/api/extract")
+        investment_extraction = requests.get("http://127.0.0.1:8001/api/extract-investment")
+        debt_refresh = requests.get("http://127.0.0.1:8001/api/debt-refresh")
 
-    return "http://127.0.0.1:8051/refresh"
+        return "/"
 
 
 @app.callback(

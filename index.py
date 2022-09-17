@@ -112,7 +112,7 @@ def load_data():
 
 def serve_layout():
     return html.Div([
-        dcc.Location(id='url', refresh=False),
+        dcc.Location(id='url', refresh=True),
         navbar,
         html.Div(id='page-content'),
 

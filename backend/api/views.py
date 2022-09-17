@@ -8,8 +8,8 @@ from dateutil.relativedelta import relativedelta
 import os
 
 from .pdf_extraction import bank_extraction, cpf_extraction, bank_extraction_historical, cpf_extraction_historical
-from .models import CPFModel, BankModel, InvestmentModel, DebtModel
-from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer
+from .models import CPFModel, BankModel, InvestmentModel, DebtModel, TaxModel, ReliefModel
+from .serializers import CPFSerialzier, InvestmentSerializer, BankSerializer, DebtSerializer, TaxSerializer, ReliefSerializer
 
 # Create your views here.
 
@@ -69,7 +69,7 @@ class ExtractInvestmentView(APIView):
                 # save historical data to csv
                 serializer = self.investment_serializer(active, many=True)
                 active_df = pd.DataFrame.from_dict(serializer.data.json())
-                active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
+                active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
             except:
                 pass
 
@@ -169,11 +169,11 @@ class HistoricalExtractionView(APIView):
     def get(self, request, format=None):
         
         # read investment historical data
-        investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
+        investment_hist = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\investment-historical","Investment-historical.csv"))
         investment_hist["DATE"] = pd.to_datetime(investment_hist["DATE"])
 
         # read initial debt data
-        debt_hist =  pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Asset Tracking\Asset\backend\pdf\debt","debt.csv"))
+        debt_hist =  pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\debt","debt.csv"))
         debt_hist["DATE"] = pd.to_datetime(debt_hist["DATE"])
 
         # pdf extraction of cpf and bank historical data
@@ -368,4 +368,22 @@ class DebtRefreshView(APIView): # currently only works for 1 debt
             print("Refreshed Remaining Debt Value ...")
 
             return Response(status=status.HTTP_200_OK)
+            
 
+                
+class TaxView(APIView):
+    tax_serializer = TaxSerializer
+
+    def get(self, request, format=None):
+        data = TaxModel.objects.all()
+        serializer = self.tax_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ReliefView(APIView):
+    relief_serializer = ReliefSerializer
+
+    def get(self, request, format=None):
+        data = ReliefModel.objects.all()
+        serializer = self.relief_serializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

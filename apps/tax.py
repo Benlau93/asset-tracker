@@ -145,6 +145,7 @@ def generate_waterfall(chargeable_income):
         _["TAX_BRACKET"] = remaining
         tax_payable = pd.concat([tax_payable,_], sort = True, ignore_index=True).sort_values("ORDER")
     tax_payable["PAYABLE"] = tax_payable["TAX_BRACKET"] * tax_payable["RATE"]
+    payable = tax_payable["PAYABLE"].sum()
 
     # generate waterfall
     tax_payable["x"] = tax_payable.apply(lambda row: "${:,.0f} ({:.1%})".format(row["TAX_BRACKET"], row["RATE"]), axis=1)
@@ -170,7 +171,7 @@ def generate_waterfall(chargeable_income):
         yaxis = dict(showgrid=False, visible=False)
     )
 
-    return waterfall_fig
+    return waterfall_fig, payable
 
 
 layout = html.Div([
@@ -250,6 +251,6 @@ def update_figures(year, tax_df, relief):
     charge_income_str = "= ${:,.0f}".format(chargeable_income)
 
     # generate waterfall chart
-    waterfall_fig = generate_waterfall(chargeable_income)
+    waterfall_fig, _ = generate_waterfall(chargeable_income)
 
     return main_kpi_fig, kpi_fig, table_fig, eq_str, charge_income_str, waterfall_fig

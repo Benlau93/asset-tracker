@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
 from dash.dependencies import Input, Output, State
-from .tax import tax_rate, generate_indicators, generate_relief_table
+from .tax import generate_indicators, generate_relief_table, generate_waterfall
 from app import app
 from datetime import date
 
@@ -15,109 +15,7 @@ TEMPLATE = "plotly_white"
 
 # define variables
 YEAR = date.today().year
-MONTH = date.today().month
-
-# relief table
-# def generate_relief_table(df):
-#     df = df.drop(["ID","YEAR"], axis=1).copy()
-#     df.columns = df.columns.str.capitalize()
-
-#     # get total relief
-#     total = df["Value"].sum()
-#     df = pd.concat([df, pd.DataFrame({"Relief":["Total: "],"Value":[total]})], sort=True, ignore_index=True)
-
-#     # sort
-#     df = df.sort_values("Value")
-    
-#     # table
-#     money = dash_table.FormatTemplate.money(2)
-#     table_fig = dash_table.DataTable(
-#         id="relief-table",
-#         columns = [
-#             dict(id="Relief", name="Relief"),
-#             dict(id="Value", name="Value", type="numeric", format=money),
-#         ],
-
-#         data=df.to_dict('records'),
-#         sort_action="native",
-#         style_data= {"border":"none"},
-#         style_header = {'display': 'none'},
-#         style_cell={
-#         'height': 'auto',
-#         'whiteSpace': 'normal','textAlign': 'left',"font-size":"28px"},
-#         style_data_conditional=(
-#             [
-
-#             {
-#                 "if":{
-#                     "filter_query":"{Relief} = 'Total: '",
-#                     "column_id":"Relief"
-#                 },
-#                 "textAlign":"right"
-#             },
-#             {
-#                 "if":{
-#                     "filter_query":"{Relief} = 'Total: '"
-#                 },
-#                 "color":"#DC143C",
-#                 "font-style":"italic",
-#                 "font-weight":"bold",
-#                 "font-size":"32px"
-#             }
-#             ]
-#         ),
-#         style_as_list_view=True,
-#         page_action="native",
-#         page_current= 0,
-#         page_size= 10,
-#     )
-
-#     return table_fig
-
-# waterfall chart
-def generate_waterfall(chargeable_income):
-    tax_rate["CUMSUM"] = tax_rate["TAX_BRACKET"].cumsum()
-
-    # get tax payable breakdown
-    tax_payable = tax_rate[tax_rate["CUMSUM"]<=chargeable_income].copy()
-    if len(tax_payable) == 0: # handle year when no tax payable
-        tax_payable = tax_rate[tax_rate["ORDER"]==1].copy()
-
-    remaining = chargeable_income - tax_payable["CUMSUM"].iloc[-1]
-    if remaining > 0:
-        _ = tax_rate[tax_rate["ORDER"] == tax_payable["ORDER"].max() + 1].copy()
-        _["TAX_BRACKET"] = remaining
-        tax_payable = pd.concat([tax_payable,_], sort = True, ignore_index=True).sort_values("ORDER")
-    tax_payable["PAYABLE"] = tax_payable["TAX_BRACKET"] * tax_payable["RATE"]
-    payable = tax_payable["PAYABLE"].sum()
-
-    # generate waterfall
-    tax_payable["x"] = tax_payable.apply(lambda row: "${:,.0f} ({:.1%})".format(row["TAX_BRACKET"], row["RATE"]), axis=1)
-    tax_payable["text"] = tax_payable["PAYABLE"].map(lambda x: "+ ${:,.2f}".format(x))
-    tax_payable["measure"] = "relative"
-
-    # add total
-    total_tax = tax_payable["PAYABLE"].sum()
-    total = pd.DataFrame({"x":["Total"],"PAYABLE":[0], "text":["${:,.2f}".format(total_tax)], "measure":["total"]})
-    tax_payable = pd.concat([tax_payable, total], sort=True, ignore_index=True, join="inner")
-
-    waterfall_fig = go.Figure()
-    waterfall_fig.add_trace(
-        go.Waterfall(x = tax_payable["x"], y = tax_payable["PAYABLE"], text = tax_payable["text"],measure = tax_payable["measure"], textposition="outside",name="Tax")
-    )
-
-    # update layout
-    waterfall_fig.update_layout(
-        title = "Tax Payable by Tax Bracket",
-        showlegend=False,
-        template = TEMPLATE,
-        height = 500,
-        yaxis = dict(showgrid=False, visible=False)
-    )
-
-    return waterfall_fig, payable
-
-
+MONTH = date.today().month - 1
 
 layout = html.Div([
     dbc.Container([
@@ -186,20 +84,30 @@ def update_figures(projection, income_df, relief):
     # get income for the year
     income_df = pd.DataFrame(income_df)
     income_df["YEARMONTH"] = pd.to_datetime(income_df["YEARMONTH"], format="%b %Y")
-    income_df = income_df[(income_df["YEARMONTH"].dt.year==YEAR) & (income_df["REF"]!="B")].copy()
-    print(income_df)
+    income_df = income_df[(income_df["YEARMONTH"].dt.year==YEAR) & (income_df["REF"]!="B")][["YEARMONTH","TYPE","VALUE_EMPLOYEE"]].copy()
+
+    if projection == "EOY":
+        month = 12
+        monthly_income = income_df.groupby("YEARMONTH").sum()["VALUE_EMPLOYEE"].mean()
+        eoy_income, cpf_projection = (12 - MONTH) * monthly_income, (12 - MONTH) * 1200 if monthly_income >= 6000 else monthly_income *0.2
+        year_project = pd.to_datetime(f"Dec {YEAR}", format="%b %Y")
+        income_df = pd.concat([income_df, pd.DataFrame({"YEARMONTH":[year_project]*2,
+                                                        "TYPE":["Salary","CPF"],"VALUE_EMPLOYEE":[eoy_income,cpf_projection]})], sort=True, ignore_index=True)
+    else:
+        month = MONTH
+
     # get relief for the year
     relief = pd.DataFrame(relief)
     relief = relief[relief["YEAR"]==YEAR][["RELIEF","VALUE"]].copy()
     # project standard relief
-    cpf_relief = income_df[income_df["TYPE"]!="Salary"]["VALUE_EMPLOYEE"].sum()
-    donation_relief = (MONTH-1) * 5 * 2.5
+    cpf_relief = min(income_df[income_df["TYPE"]!="Salary"]["VALUE_EMPLOYEE"].sum(), 20400)
+    donation_relief = month * 5 * 2.5
     relief_project = pd.DataFrame({"RELIEF":["Provident Fund/ Life Insurance*","Donation*","NSman-self/ wife/ parent*"],"VALUE":[cpf_relief,donation_relief,1500]})
     # append to main relief df
     relief = pd.concat([relief,relief_project], sort=True, ignore_index=True)
 
     # get chargeable income
-    total_income = income_df["VALUE_EMPLOYEE"].sum()
+    total_income = income_df[income_df["TYPE"]!="CPF"]["VALUE_EMPLOYEE"].sum()
     total_rebate = min(relief["VALUE"].sum(),80000)
     chargeable_income = total_income - total_rebate
     eq_str = "${:,.0f} - ${:,.0f}".format(total_income, total_rebate)

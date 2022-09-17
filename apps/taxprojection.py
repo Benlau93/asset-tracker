@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
 from dash.dependencies import Input, Output, State
-from .tax import tax_rate
+from .tax import tax_rate, generate_indicators, generate_relief_table
 from app import app
 from datetime import date
 
@@ -15,116 +15,64 @@ TEMPLATE = "plotly_white"
 
 # define variables
 YEAR = date.today().year
-
-# kpi
-def generate_indicators(df):
-    # get total income for current year
-    total_income = df["INCOME"].iloc[0]
-
-    main_kpi_fig = go.Figure()
-    main_kpi_fig.add_trace(
-        go.Indicator(mode="number",
-                    value = total_income,
-                    title = "Total Annual Income",
-                    number = dict(valueformat="$,.0f")
-                    )
-    )
-
-    main_kpi_fig.update_layout(
-        height = 250,
-        template = TEMPLATE
-    )
-
-    # get tax payable
-    tax_annual = df["TAX_YEAR"].iloc[0]
-    tax_month = df["TAX_MONTH"].iloc[0]
-
-    kpi_fig = go.Figure()
-    kpi_fig.add_trace(
-        go.Indicator(mode="number",
-                    value = tax_annual,
-                    title = "Tax Payable (Annual)",
-                    number = dict(valueformat="$,.02f"),
-                    domain = {"row":1, "column":0}
-                    )
-                    
-    )
-
-    kpi_fig.add_trace(
-        go.Indicator(mode="number",
-                    value = tax_month,
-                    title = "Tax Payable (Monthly)",
-                    number = dict(valueformat="$,.02f"),
-                    domain = {"row":2, "column":1}
-                    )
-                    
-    )
-
-    kpi_fig.update_layout(
-        grid = {"rows":1, "columns":2, "pattern":"independent"},
-        height = 250,
-        template = TEMPLATE
-    )
-
-    return main_kpi_fig, kpi_fig
-
+MONTH = date.today().month
 
 # relief table
-def generate_relief_table(df):
-    df = df.drop(["ID","YEAR"], axis=1).copy()
-    df.columns = df.columns.str.capitalize()
+# def generate_relief_table(df):
+#     df = df.drop(["ID","YEAR"], axis=1).copy()
+#     df.columns = df.columns.str.capitalize()
 
-    # get total relief
-    total = df["Value"].sum()
-    df = pd.concat([df, pd.DataFrame({"Relief":["Total: "],"Value":[total]})], sort=True, ignore_index=True)
+#     # get total relief
+#     total = df["Value"].sum()
+#     df = pd.concat([df, pd.DataFrame({"Relief":["Total: "],"Value":[total]})], sort=True, ignore_index=True)
 
-    # sort
-    df = df.sort_values("Value")
+#     # sort
+#     df = df.sort_values("Value")
     
-    # table
-    money = dash_table.FormatTemplate.money(2)
-    table_fig = dash_table.DataTable(
-        id="relief-table",
-        columns = [
-            dict(id="Relief", name="Relief"),
-            dict(id="Value", name="Value", type="numeric", format=money),
-        ],
+#     # table
+#     money = dash_table.FormatTemplate.money(2)
+#     table_fig = dash_table.DataTable(
+#         id="relief-table",
+#         columns = [
+#             dict(id="Relief", name="Relief"),
+#             dict(id="Value", name="Value", type="numeric", format=money),
+#         ],
 
-        data=df.to_dict('records'),
-        sort_action="native",
-        style_data= {"border":"none"},
-        style_header = {'display': 'none'},
-        style_cell={
-        'height': 'auto',
-        'whiteSpace': 'normal','textAlign': 'left',"font-size":"28px"},
-        style_data_conditional=(
-            [
+#         data=df.to_dict('records'),
+#         sort_action="native",
+#         style_data= {"border":"none"},
+#         style_header = {'display': 'none'},
+#         style_cell={
+#         'height': 'auto',
+#         'whiteSpace': 'normal','textAlign': 'left',"font-size":"28px"},
+#         style_data_conditional=(
+#             [
 
-            {
-                "if":{
-                    "filter_query":"{Relief} = 'Total: '",
-                    "column_id":"Relief"
-                },
-                "textAlign":"right"
-            },
-            {
-                "if":{
-                    "filter_query":"{Relief} = 'Total: '"
-                },
-                "color":"#DC143C",
-                "font-style":"italic",
-                "font-weight":"bold",
-                "font-size":"32px"
-            }
-            ]
-        ),
-        style_as_list_view=True,
-        page_action="native",
-        page_current= 0,
-        page_size= 10,
-    )
+#             {
+#                 "if":{
+#                     "filter_query":"{Relief} = 'Total: '",
+#                     "column_id":"Relief"
+#                 },
+#                 "textAlign":"right"
+#             },
+#             {
+#                 "if":{
+#                     "filter_query":"{Relief} = 'Total: '"
+#                 },
+#                 "color":"#DC143C",
+#                 "font-style":"italic",
+#                 "font-weight":"bold",
+#                 "font-size":"32px"
+#             }
+#             ]
+#         ),
+#         style_as_list_view=True,
+#         page_action="native",
+#         page_current= 0,
+#         page_size= 10,
+#     )
 
-    return table_fig
+#     return table_fig
 
 # waterfall chart
 def generate_waterfall(chargeable_income):
@@ -141,6 +89,7 @@ def generate_waterfall(chargeable_income):
         _["TAX_BRACKET"] = remaining
         tax_payable = pd.concat([tax_payable,_], sort = True, ignore_index=True).sort_values("ORDER")
     tax_payable["PAYABLE"] = tax_payable["TAX_BRACKET"] * tax_payable["RATE"]
+    payable = tax_payable["PAYABLE"].sum()
 
     # generate waterfall
     tax_payable["x"] = tax_payable.apply(lambda row: "${:,.0f} ({:.1%})".format(row["TAX_BRACKET"], row["RATE"]), axis=1)
@@ -166,7 +115,7 @@ def generate_waterfall(chargeable_income):
         yaxis = dict(showgrid=False, visible=False)
     )
 
-    return waterfall_fig
+    return waterfall_fig, payable
 
 
 
@@ -200,11 +149,12 @@ layout = html.Div([
             dbc.Col([dcc.Graph(id="project-sub-kpi")], width=10)
         ], justify="center"),
         dbc.Row([
-            dbc.Card(html.H3("Tax Reliefs", className="text-center text-primary bg-light"), body=True, color="light")
+            dbc.Card(html.H3("Tax Reliefs Projection", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
         dbc.Row([
-            dbc.Col(id="project-table-container",width={"size":8}, style={"margin-top":20})
+            dbc.Col(id="project-table-container",width={"size":8}, style={"margin-top":20}),
         ], align="center", justify="center"),
+        dbc.Row([dbc.Col(html.P("*denote projection relief values"))]),
         html.Hr(),
         html.Br(),
         dbc.Row([
@@ -229,32 +179,40 @@ layout = html.Div([
     Output(component_id="project-charge-income-str", component_property="children"),
     Output(component_id="waterfall-project", component_property="figure"),
     Input(component_id="projection-radios", component_property="value"),
-    State(component_id="tax-store", component_property="data"),
+    State(component_id="income-store", component_property="data"),
     State(component_id="relief-store", component_property="data")
 )
-def update_figures(projection, tax_df, relief):
-    # convert to int
-    year = 2021
-    # get tax for the year
-    tax_df = pd.DataFrame(tax_df)
-    tax_df = tax_df[tax_df["YEAR"]==year].copy()
-
+def update_figures(projection, income_df, relief):
+    # get income for the year
+    income_df = pd.DataFrame(income_df)
+    income_df["YEARMONTH"] = pd.to_datetime(income_df["YEARMONTH"], format="%b %Y")
+    income_df = income_df[(income_df["YEARMONTH"].dt.year==YEAR) & (income_df["REF"]!="B")].copy()
+    print(income_df)
     # get relief for the year
     relief = pd.DataFrame(relief)
-    relief = relief[relief["YEAR"]==year].copy()
+    relief = relief[relief["YEAR"]==YEAR][["RELIEF","VALUE"]].copy()
+    # project standard relief
+    cpf_relief = income_df[income_df["TYPE"]!="Salary"]["VALUE_EMPLOYEE"].sum()
+    donation_relief = (MONTH-1) * 5 * 2.5
+    relief_project = pd.DataFrame({"RELIEF":["Provident Fund/ Life Insurance*","Donation*","NSman-self/ wife/ parent*"],"VALUE":[cpf_relief,donation_relief,1500]})
+    # append to main relief df
+    relief = pd.concat([relief,relief_project], sort=True, ignore_index=True)
+
+    # get chargeable income
+    total_income = income_df["VALUE_EMPLOYEE"].sum()
+    total_rebate = min(relief["VALUE"].sum(),80000)
+    chargeable_income = total_income - total_rebate
+    eq_str = "${:,.0f} - ${:,.0f}".format(total_income, total_rebate)
+    charge_income_str = "= ${:,.0f}".format(chargeable_income)
+
+    # generate waterfall chart and get total tax payable
+    waterfall_fig, payable = generate_waterfall(chargeable_income)
+    
+    # simulate tax df
+    tax_df = pd.DataFrame({"INCOME":[total_income],"TAX_YEAR":[payable],"TAX_MONTH":[payable/12]})
 
     # generate chart
     main_kpi_fig, kpi_fig = generate_indicators(tax_df)
     table_fig = generate_relief_table(relief)
     
-    # get chargeable income
-    total_income = tax_df["INCOME"].iloc[0]
-    total_rebate = relief["VALUE"].sum()
-    chargeable_income = total_income - total_rebate
-    eq_str = "${:,} - ${:,}".format(total_income, total_rebate)
-    charge_income_str = "= ${:,}".format(chargeable_income)
-
-    # generate waterfall chart
-    waterfall_fig = generate_waterfall(chargeable_income)
-
     return main_kpi_fig, kpi_fig, table_fig, eq_str, charge_income_str, waterfall_fig

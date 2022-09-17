@@ -75,15 +75,15 @@ def generate_indicators(df):
 
 # relief table
 def generate_relief_table(df):
-    df = df.drop(["ID","YEAR"], axis=1).copy()
-    df.columns = df.columns.str.capitalize()
+    df_ = df.copy()
+    df_.columns = df_.columns.str.capitalize()
 
     # get total relief
-    total = df["Value"].sum()
-    df = pd.concat([df, pd.DataFrame({"Relief":["Total: "],"Value":[total]})], sort=True, ignore_index=True)
+    total = df_["Value"].sum()
+    df_ = pd.concat([df_, pd.DataFrame({"Relief":["Total: "],"Value":[total]})], sort=True, ignore_index=True)
 
     # sort
-    df = df.sort_values("Value")
+    df_ = df_.sort_values("Value")
     
     # table
     money = dash_table.FormatTemplate.money(2)
@@ -94,7 +94,7 @@ def generate_relief_table(df):
             dict(id="Value", name="Value", type="numeric", format=money),
         ],
 
-        data=df.to_dict('records'),
+        data=df_.to_dict('records'),
         sort_action="native",
         style_data= {"border":"none"},
         style_header = {'display': 'none'},
@@ -236,7 +236,7 @@ def update_figures(year, tax_df, relief):
 
     # get relief for the year
     relief = pd.DataFrame(relief)
-    relief = relief[relief["YEAR"]==year].copy()
+    relief = relief[relief["YEAR"]==year].drop(["ID","YEAR"], axis=1).copy()
 
     # generate chart
     main_kpi_fig, kpi_fig = generate_indicators(tax_df)
@@ -246,8 +246,8 @@ def update_figures(year, tax_df, relief):
     total_income = tax_df["INCOME"].iloc[0]
     total_rebate = relief["VALUE"].sum()
     chargeable_income = total_income - total_rebate
-    eq_str = "${:,} - ${:,}".format(total_income, total_rebate)
-    charge_income_str = "= ${:,}".format(chargeable_income)
+    eq_str = "${:,.0f} - ${:,.0f}".format(total_income, total_rebate)
+    charge_income_str = "= ${:,.0f}".format(chargeable_income)
 
     # generate waterfall chart
     waterfall_fig = generate_waterfall(chargeable_income)

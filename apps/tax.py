@@ -183,7 +183,7 @@ layout = html.Div([
                     options = [{"label":y, "value":y} for y in range(YEAR-1,2018,-1)],
                     value = YEAR -1
             )], width=2),
-            dbc.Col(dbc.Button("Tax Projection",href="http://127.0.0.1:8051/tax-projection",color="info"),width={"size":2,"offset":2})
+            dbc.Col(dbc.Button("Tax Projection",href="http://127.0.0.1:8051/tax-projection",color="secondary"),width={"size":2,"offset":2})
         ], style={"margin-top":10}),
         dbc.Row([
             dbc.Card(html.H3("Income Tax Assessment", className="text-center text-primary bg-light"), body=True, color="light")

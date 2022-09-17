@@ -7,14 +7,24 @@ from apps import main, income, tax, taxprojection
 import requests
 import pandas as pd
 
+# define global variables
+BANK_TYPE = ["Salary"]
+CPF_TYPE = ["OA","SA","MA"]
 
 # building the navigation bar
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(dbc.NavLink("Home", href="/")),
         dbc.NavItem(dbc.NavLink("Income", href="/income")),
-        dbc.NavItem(dbc.NavLink("Tax", href="/tax"))
+        dbc.DropdownMenu(
+            children=[
+                dbc.DropdownMenuItem("Historical", href="/tax"),
+                dbc.DropdownMenuItem("Projection", href="/tax-projection"),
 
+            ],
+            nav = True,
+            in_navbar=True,
+            label="Tax")
     ],
     brand="Asset Tracking",
     brand_href="/",
@@ -61,6 +71,29 @@ def load_data():
     # add liquidity
     df["Liquidity"] = df["Asset"].map(lambda x: "non-Liquid" if x.startswith("CPF") else "Liquid")
 
+    # generate income df
+    # process bank statement
+    bank_income = bank[bank["BANK_TYPE"].isin(BANK_TYPE)].drop(["DATE","ID","HISTORICAL"], axis=1).rename({"BANK_TYPE":"TYPE"},axis=1) # filter to income
+    
+    # process cpf
+    cpf_income = cpf[(cpf["CODE"]=="CON") & (cpf["REF"].isin(["A","B"]))].drop(["DATE","CODE","ID","HISTORICAL"], axis=1).copy() # filter to cpf contribution from dsta income
+    cpf_income = cpf_income.groupby(["YEARMONTH","REF"]).sum().reset_index()
+    cpf_income = cpf_income.melt(id_vars=["YEARMONTH","REF"], value_name = "VALUE", var_name = "TYPE")
+    cpf_income = cpf_income[cpf_income["VALUE"]>0].copy()
+
+    # combine both sources
+    income_df = pd.concat([bank_income, cpf_income], sort=True, ignore_index=True)
+
+    def remove_employer(row):
+        if row["TYPE"]=="Salary":
+            new_value = row["VALUE"]
+        else:
+            new_value = row["VALUE"] * 20/37
+        
+        return new_value
+
+    income_df["VALUE_EMPLOYEE"] = income_df.apply(remove_employer, axis=1)
+
     # load debt
     debt = requests.get("http://127.0.0.1:8001/api/debt")
     debt = pd.DataFrame.from_dict(debt.json())
@@ -73,7 +106,7 @@ def load_data():
     relief = requests.get("http://127.0.0.1:8001/api/relief")
     relief = pd.DataFrame.from_dict(relief.json())
 
-    return df.to_dict(orient="records"), debt.to_dict(orient = "records"),bank.to_dict(orient="records"), cpf.to_dict(orient="records"), investment.to_dict(orient="records"), tax_df.to_dict(orient="records"), relief.to_dict(orient="records")
+    return df.to_dict(orient="records"), debt.to_dict(orient = "records"), income_df.to_dict(orient="records"), tax_df.to_dict(orient="records"), relief.to_dict(orient="records")
 
 
 
@@ -86,9 +119,7 @@ def serve_layout():
         # data store
         dcc.Store(id="df-store"),
         dcc.Store(id="debt-store"),
-        dcc.Store(id="bank-store"),
-        dcc.Store(id="cpf-store"),
-        dcc.Store(id="investment-store"),
+        dcc.Store(id="income-store"),
         dcc.Store(id="tax-store"),
         dcc.Store(id="relief-store")
     ])
@@ -99,9 +130,7 @@ app.layout = serve_layout
     Output(component_id='page-content', component_property='children'),
     Output(component_id='df-store', component_property='data'),
     Output(component_id='debt-store', component_property='data'),
-    Output(component_id='bank-store', component_property='data'),
-    Output(component_id='cpf-store', component_property='data'),
-    Output(component_id='investment-store', component_property='data'),
+    Output(component_id='income-store', component_property='data'),
     Output(component_id='tax-store', component_property='data'),
     Output(component_id='relief-store', component_property='data'),
     Input(component_id='url', component_property='pathname')
@@ -118,9 +147,9 @@ def display_page(pathname):
 
     # load data
     print("RETRIEVE DATA FROM BACKEND API")
-    df, debt, bank, cpf, investment, tax_df, relief = load_data()
+    df, debt, income_df, tax_df, relief = load_data()
 
-    return layout, df, debt, bank, cpf, investment, tax_df, relief
+    return layout, df, debt, income_df, tax_df, relief
 
 # start server
 if __name__ == '__main__':

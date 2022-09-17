@@ -6,19 +6,15 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
 from dash.dependencies import Input, Output, State
+from .tax import tax_rate
 from app import app
 from datetime import date
-import os
 
 # define template used
 TEMPLATE = "plotly_white"
 
 # define variables
 YEAR = date.today().year
-
-# import tax rate
-tax_rate = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend","Tax Rate.csv"))
-tax_rate = tax_rate.sort_values("ORDER")
 
 # kpi
 def generate_indicators(df):
@@ -177,17 +173,25 @@ def generate_waterfall(chargeable_income):
 layout = html.Div([
     dbc.Container([
         dbc.Row([
-            dbc.Col([html.H5("Select Year:")],width={"size":2,"offset":4}, align="center"),
+            dbc.Col([html.H5("Select Projection:")],width={"size":2,"offset":3}, align="center"),
             dbc.Col([
-                dbc.Select(
-                    id = "tax-year",
-                    options = [{"label":y, "value":y} for y in range(YEAR-1,2018,-1)],
-                    value = YEAR -1
-            )], width=2),
-            dbc.Col(dbc.Button("Historical Tax",href="http://127.0.0.1:8051/tax",color="info"),width={"size":2,"offset":2})
+                    dbc.RadioItems(
+                        id="projection-radios",
+                        className="btn-group",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-success",
+                        labelCheckedClassName="active",
+                        options=[
+                            {"label": "To-Date", "value": "To-Date"},
+                            {"label": "EOY", "value": "EOY"}
+                        ],
+                        value="To-Date")
+            ], width=3),
+            dbc.Col(dbc.Button("Historical Tax",href="http://127.0.0.1:8051/tax",color="secondary"),width={"size":2,"offset":2})
         ], style={"margin-top":10}),
+        dbc.Row(dbc.Col(html.H1(f"{YEAR}", style={"font-size":"80px","font-weight":"bold","color":"#2898d8","text-align":"center","margin":"10px","font-family": "Times New Roman"})), align="center",justify="center"),
         dbc.Row([
-            dbc.Card(html.H3("Income Tax Assessment", className="text-center text-primary bg-light"), body=True, color="light")
+            dbc.Card(html.H3("Income Tax Projection", className="text-center text-primary bg-light"), body=True, color="light")
         ], style={"margin-top":20}),
         dbc.Row([
             dbc.Col([dcc.Graph(id="project-main-kpi")], width=6)
@@ -224,13 +228,13 @@ layout = html.Div([
     Output(component_id="project-eq-str", component_property="children"),
     Output(component_id="project-charge-income-str", component_property="children"),
     Output(component_id="waterfall-project", component_property="figure"),
-    Input(component_id="tax-year", component_property="value"),
+    Input(component_id="projection-radios", component_property="value"),
     State(component_id="tax-store", component_property="data"),
     State(component_id="relief-store", component_property="data")
 )
-def update_figures(year, tax_df, relief):
+def update_figures(projection, tax_df, relief):
     # convert to int
-    year = int(year)
+    year = 2021
     # get tax for the year
     tax_df = pd.DataFrame(tax_df)
     tax_df = tax_df[tax_df["YEAR"]==year].copy()

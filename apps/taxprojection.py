@@ -52,7 +52,7 @@ layout = html.Div([
         dbc.Row([
             dbc.Col(id="project-table-container",width={"size":8}, style={"margin-top":20}),
         ], align="center", justify="center"),
-        dbc.Row([dbc.Col(html.P("*denote projection relief values"))]),
+        dbc.Row([dbc.Col(html.P("*denote projected relief values"))]),
         html.Hr(),
         html.Br(),
         dbc.Row([

@@ -9,11 +9,10 @@ from dash.dependencies import Input, Output, State
 from dash import callback_context
 from app import app
 import requests
-import datetime
+from datetime import date
 
 # define template used
 TEMPLATE = "plotly_white"
-
 
 # main kpi
 def generate_indicator(df):
@@ -146,15 +145,14 @@ def generate_line(df):
     # add line to monitor yearly trend
     df_year = df[df["DATE"].dt.month==12].copy()
     years = df_year["DATE"].dt.year.unique()
-    green = 222
+
     for i in range(len(years)):
 
         # determine variables
         year = years[i]
         value = df_year[df_year["DATE"].dt.year==year]["VALUE"].iloc[0]
-        color = f"rgb(100,{green},200)"
-        green = max(0,green-50)
-        text = f"{year+1}, ${str(round(value))}"
+        color = "firebrick" if year == date.today().year -1  else "#D3D3D3"
+        text = "{}, ${:,.0f}".format(year+1, value)
 
         # plot lines
         line_fig.add_hline(y=value, line_dash="dash", annotation_text=text, line_color=color)

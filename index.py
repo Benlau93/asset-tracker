@@ -48,8 +48,8 @@ def load_data():
 
     # investment
     investment= requests.get("http://127.0.0.1:8001/api/investment")
-    investment = pd.DataFrame.from_dict(investment.json())
-    investment["DATE"] = pd.to_datetime(investment["DATE"], format="%Y-%m-%d")
+    investment = pd.DataFrame.from_dict(investment.json()).drop(["INVESTMENT_TYPE","HISTORICAL","DATE"], axis=1)
+    # investment["DATE"] = pd.to_datetime(investment["DATE"], format="%Y-%m-%d")
 
     # combine to get df
     bank_ = bank[bank["BANK_TYPE"]=="END"][["DATE","YEARMONTH","VALUE"]].copy()
@@ -60,7 +60,7 @@ def load_data():
     cpf_.columns = ["DATE","YEARMONTH","Asset","VALUE"]
     cpf_["Asset"] = cpf_["Asset"].map(lambda x: "CPF - " + x)
 
-    investment_ = investment.groupby(["DATE","YEARMONTH"]).sum()[["VALUE"]].reset_index()
+    investment_ = investment.groupby(["YEARMONTH"]).sum()[["VALUE"]].reset_index()
     investment_["Asset"] = "Investment"
 
     df = pd.concat([bank_, cpf_, investment_], sort=True, ignore_index=True)

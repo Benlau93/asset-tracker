@@ -48,8 +48,7 @@ def load_data():
 
     # investment
     investment= requests.get("http://127.0.0.1:8001/api/investment")
-    investment = pd.DataFrame.from_dict(investment.json()).drop(["INVESTMENT_TYPE","HISTORICAL","DATE"], axis=1)
-    # investment["DATE"] = pd.to_datetime(investment["DATE"], format="%Y-%m-%d")
+    investment = pd.DataFrame.from_dict(investment.json())
 
     # combine to get df
     bank_ = bank[bank["BANK_TYPE"]=="END"][["DATE","YEARMONTH","VALUE"]].copy()
@@ -153,4 +152,4 @@ def display_page(pathname):
 
 # start server
 if __name__ == '__main__':
-    app.run_server(port=8051,debug=True)
+    app.run_server(port=8051,debug=False)

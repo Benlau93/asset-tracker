@@ -6,6 +6,9 @@ class InvestmentSerializer(serializers.ModelSerializer):
         model = InvestmentModel
         fields = "__all__"
 
+    def create(self, validated_data):
+        return InvestmentModel.objects.create(**validated_data)
+
 
 class BankSerializer(serializers.ModelSerializer):
     class Meta:

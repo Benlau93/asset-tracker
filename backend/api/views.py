@@ -21,11 +21,11 @@ class ExtractInvestmentView(APIView):
 
         # check if previous month record in investmentmodel
         prev_month = pd.to_datetime(datetime.date.today() - relativedelta(months=1)).strftime("%b %Y")
-        # query = InvestmentModel.objects.filter(ID = prev_month)
+        query = InvestmentModel.objects.filter(ID = prev_month)
 
-        # if len(query) == 1:
-        #     print("No Further Investment Extraction Needed ...")
-        #     return Response(status=status.HTTP_200_OK)
+        if len(query) == 1:
+            print("No Further Investment Extraction Needed ...")
+            return Response(status=status.HTTP_200_OK)
 
         # get current portfolio
         try:
@@ -41,7 +41,7 @@ class ExtractInvestmentView(APIView):
 
         # convert to dataframe
         portfolio = pd.DataFrame.from_dict(portfolio.json())[["symbol","date_open","total_quantity","avg_exchange_rate"]].copy()
-        transaction = pd.DataFrame.from_dict(transaction.json())[["symbol","date","action","quantity"]].copy()
+        transaction = pd.DataFrame.from_dict(transaction.json())[["symbol","date","action","quantity","exchange_rate"]].copy()
 
         # filter potfolio before this month
         portfolio["date_open"] = pd.to_datetime(portfolio["date_open"], format="%Y-%m-%d")
@@ -50,64 +50,59 @@ class ExtractInvestmentView(APIView):
 
         # filter transaction in current month
         transaction["date"] = pd.to_datetime(transaction["date"], format="%Y-%m-%d")
-        transaction = transaction[(transaction["date"]>=current_month) & (transaction["symbol"].isin(symbol_list))].copy()
-        transaction["quantity"] = transaction.apply(lambda row: row["quantity"] * -1 if row["action"]=="Buy" else row["quantity"], axis=1) # format quantity to reverse current month transaction
+        transaction = transaction[(transaction["date"]>=current_month)].copy()
+
+        # handle symbol in current portfolio
+        trans_port = transaction[transaction["symbol"].isin(symbol_list)].copy()
+        trans_port["quantity"] = trans_port.apply(lambda row: row["quantity"] * -1 if row["action"]=="Buy" else row["quantity"], axis=1) # format quantity to reverse current month transaction
         
+        # handle symbols closed in current month
+        trans_closed = transaction[~(transaction["symbol"].isin(symbol_list)) & (transaction["action"]=="Sell")].rename({"quantity":"total_quantity",
+                                                                                                                        "exchange_rate":"avg_exchange_rate"}, axis=1)
         # merge and replicate previous month portfolio
-        portfolio = pd.merge(portfolio, transaction[["symbol","quantity"]], on="symbol", how="left")
+        # change quantity based on transaction
+        portfolio = pd.merge(portfolio, trans_port[["symbol","quantity"]], on="symbol", how="left")
         portfolio["quantity"] = portfolio["quantity"].fillna(0)
         portfolio["total_quantity"] = portfolio["total_quantity"] + portfolio["quantity"]
+        portfolio = portfolio.drop(["quantity"], axis=1)
+
+        # add back closed position
+        portfolio = pd.concat([portfolio, trans_closed], sort=True, ignore_index=True, join="inner")
 
         # get portfolio current price
-        symbol_list = " ".join(symbol_list)
+        symbol_list = " ".join(portfolio["symbol"].unique())
         data = yf.download(symbol_list, period = "30d", interval="1d", group_by="ticker", progress=False).reset_index()
         data = data.melt(id_vars="Date", var_name=["symbol","OHLC"], value_name="price").dropna()
         data = data[(data["OHLC"]=="Close") & (data["Date"]<current_month)].drop(["OHLC"],axis=1)
         data = data.sort_values(["symbol","Date"]).groupby("symbol").tail(1).drop("Date", axis=1)
-        print(data)
         
         # get usd exchange rate
+        exchange_rate = yf.download("SGDUSD=X", period = "30d", interval="1d",progress=False)
+        exchange_rate = exchange_rate[["Close"]].reset_index()
+        exchange_rate = 1/ exchange_rate[exchange_rate["Date"]<current_month].iloc[-1,1]
+        
+        # get total investment value for prev month
+        investment = pd.merge(portfolio, data, on="symbol")
+        investment["US_exchange"] = exchange_rate
+        investment["avg_exchange_rate"] = investment.apply(lambda row: row["US_exchange"] if row["avg_exchange_rate"]>1 else row["avg_exchange_rate"], axis=1)
+        investment["VALUE"] = investment["total_quantity"] * investment["avg_exchange_rate"] * investment["price"]
+        investment["YEARMONTH"] = prev_month
+        investment = investment.groupby("YEARMONTH").sum()["VALUE"].iloc[0]
 
+        # insert to investment model
+        data_upload = {"ID":prev_month,
+                    "YEARMONTH":prev_month,
+                    "VALUE":investment}
 
-        # # add year month
-        # portfolio["YEARMONTH"] = portfolio["DATE"].dt.strftime("%b %Y")
-
-        # # check for existing data for current yearmonth
-        # record = InvestmentModel.objects.filter(YEARMONTH = portfolio["YEARMONTH"].iloc[0])
-
-        # if len(record) > 0 :
-        #     # if there are data for current year month, delete it
-        #     record.delete()
-        #     print("Updated Existing Investment Value ...")
-
-        # else:
-        #     # check if there is existing active data
-        #     try:
-        #         # convert active data to historical         
-        #         active = InvestmentModel.objects.filter(HISTORICAL = False).update(HISTORICAL=True)
-
-        #         # save historical data to csv
-        #         serializer = self.investment_serializer(active, many=True)
-        #         active_df = pd.DataFrame.from_dict(serializer.data.json())
-        #         active_df.to_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend\pdf\investment-historical","Investment-historical.csv"), mode="a",index=False)
-        #     except:
-        #         pass
-
-        #     print("Added New Investment Value ...")
-
-        # # insert to investment model
-        # df_records =  portfolio.to_dict(orient="records")
-        # model_instances = [InvestmentModel(
-        #         ID = record["YEARMONTH"] + "|" + record["INVESTMENT_TYPE"],
-        #         DATE = record["DATE"],
-        #         YEARMONTH = record["YEARMONTH"],
-        #         INVESTMENT_TYPE = record["INVESTMENT_TYPE"],
-        #         VALUE = record["VALUE"]
-        #     ) for record in df_records]
-
-        # InvestmentModel.objects.bulk_create(model_instances)
-
-        return Response(status=status.HTTP_200_OK)
+        investment_serialised = self.investment_serializer(data=data_upload)
+        if investment_serialised.is_valid():
+            
+            investment_serialised.save()
+            print("Added New Investment Value ...")
+            return Response(status=status.HTTP_200_OK)
+        else:
+            print("Failed to add new Investment Value ")
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 class PDFExtractionView(APIView):

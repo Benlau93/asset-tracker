@@ -11,6 +11,7 @@ from app import app
 import requests
 from datetime import date
 from dash import callback_context
+from dash.exceptions import PreventUpdate
 
 # define template used
 TEMPLATE = "plotly_white"
@@ -228,6 +229,8 @@ def refresh_data(n_clicks):
         debt_refresh = requests.get("http://127.0.0.1:8001/api/debt-refresh")
 
         return "/"
+    else:
+        raise PreventUpdate
 
 
 @app.callback(

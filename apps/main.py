@@ -131,7 +131,7 @@ def generate_line(df):
     line_fig = make_subplots(rows=2, cols = 1, subplot_titles = ["Asset Trends","% Change Trends"], row_heights=[0.8,0.2], vertical_spacing=0)
 
     line_fig.add_trace(
-        go.Scatter(x=df["DATE"], y = df["VALUE"], mode="lines+markers+text", name = "Asset"), row=1, col=1
+        go.Scatter(x=df["DATE"], y = df["VALUE"], mode="lines+markers+text", name = "Asset", hovertemplate="%{x|%b %Y}, $%{y:,.0f}"), row=1, col=1
     )
 
     # add bar

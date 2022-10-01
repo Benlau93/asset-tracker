@@ -54,20 +54,25 @@ class ExtractInvestmentView(APIView):
 
         # handle symbol in current portfolio
         trans_port = transaction[transaction["symbol"].isin(symbol_list)].copy()
-        trans_port["quantity"] = trans_port.apply(lambda row: row["quantity"] * -1 if row["action"]=="Buy" else row["quantity"], axis=1) # format quantity to reverse current month transaction
+        if len(trans_port) > 0 :
+            trans_port["quantity"] = trans_port.apply(lambda row: row["quantity"] * -1 if row["action"]=="Buy" else row["quantity"], axis=1) # format quantity to reverse current month transaction
+            portfolio = pd.merge(portfolio, trans_port[["symbol","quantity"]], on="symbol", how="left")
+            portfolio["quantity"] = portfolio["quantity"].fillna(0)
+        else:
+            portfolio["quantity"] = 0
         
         # handle symbols closed in current month
         trans_closed = transaction[~(transaction["symbol"].isin(symbol_list)) & (transaction["action"]=="Sell")].rename({"quantity":"total_quantity",
                                                                                                                         "exchange_rate":"avg_exchange_rate"}, axis=1)
+        
+        if len(trans_closed) > 0:
+            # add back closed position
+            portfolio = pd.concat([portfolio, trans_closed], sort=True, ignore_index=True, join="inner")
+        
         # merge and replicate previous month portfolio
         # change quantity based on transaction
-        portfolio = pd.merge(portfolio, trans_port[["symbol","quantity"]], on="symbol", how="left")
-        portfolio["quantity"] = portfolio["quantity"].fillna(0)
         portfolio["total_quantity"] = portfolio["total_quantity"] + portfolio["quantity"]
         portfolio = portfolio.drop(["quantity"], axis=1)
-
-        # add back closed position
-        portfolio = pd.concat([portfolio, trans_closed], sort=True, ignore_index=True, join="inner")
 
         # get portfolio current price
         symbol_list = " ".join(portfolio["symbol"].unique())

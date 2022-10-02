@@ -38,3 +38,4 @@ venv.bak/
 /backend/pdf/estatement-historical
 /backend/pdf/investment-historical
 /backend/pdf/debt
+backend/api/fixtures

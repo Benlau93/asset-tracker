@@ -33,4 +33,4 @@ Similar to Cash saving, monthly CPF e-statement are uploaded and transactions ar
 With the monthly income data extracted from bank e-statement, we can easily track and analyse our income trends
 
 ![Income Year](./img/asset_income.png)
-![Income YoY](./img/asset_trend_yoy.png)
+![Income YoY](./img/asset_income_yoy.png)

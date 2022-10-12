@@ -30,7 +30,14 @@ Similar to Cash saving, monthly CPF e-statement are uploaded and transactions ar
 ## Enhancement/Features Added
 
 ### Income Tracker
-With the monthly income data extracted from bank e-statement, we can easily track and analyse our income trends
+With the monthly income data extracted from bank e-statement, we can easily track and analyse income trends
 
 ![Income Year](./img/asset_income.png)
 ![Income YoY](./img/asset_income_yoy.png)
+
+
+### Personal Tax Analysis and Projection
+Further tapping on income data, we can project payable personal tax for the current year
+
+![Tax Projection](./img/asset_tax.png)
+![Tax Bracket](./img/asset_tax_bracket.png)

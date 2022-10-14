@@ -22,6 +22,8 @@ Similar to Cash saving, monthly CPF e-statement are uploaded and transactions ar
 2. Backend API - Django Restful API (Python)
 3. Database - Sqlite3 (RDBMS)
 
+## Limitation
+1. Requires monthly upload of bank and CPF e-statement. API not available for automated retrieval of data
 
 ## Demo
 ![Asset Tracker](./img/asset_main.png)

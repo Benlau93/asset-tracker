@@ -152,4 +152,4 @@ def display_page(pathname):
 
 # start server
 if __name__ == '__main__':
-    app.run_server(port=8051,debug=False)
+    app.run_server(host = "0.0.0.0",port=8051,debug=False)

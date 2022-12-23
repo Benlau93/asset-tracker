@@ -17,7 +17,7 @@ TEMPLATE = "plotly_white"
 YEAR = date.today().year
 
 # import tax rate
-TAX_DIR = os.path.join(r"..\backend","Tax Rate.csv")
+TAX_DIR = os.path.join(r"backend","Tax Rate.csv")
 tax_rate = pd.read_csv(TAX_DIR)
 tax_rate = tax_rate.sort_values("ORDER")
 

@@ -17,7 +17,7 @@ TEMPLATE = "plotly_white"
 YEAR = date.today().year
 
 # import tax rate
-tax_rate = pd.read_csv(os.path.join(r"C:\Users\ben_l\Desktop\Web Apps\Asset\backend","Tax Rate.csv"))
+tax_rate = pd.read_csv(os.path.join(r"..\backend","Tax Rate.csv"))
 tax_rate = tax_rate.sort_values("ORDER")
 
 # kpi

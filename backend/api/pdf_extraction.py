@@ -10,7 +10,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def bank_extraction():
-    STATEMENT_DIR = r"..\pdf\estatement"
+    STATEMENT_DIR = r"pdf\estatement"
 
     # check processed statement
     with open(os.path.join(os.path.split(STATEMENT_DIR)[0],"historical-bank.txt"),"r") as f:
@@ -109,7 +109,7 @@ def bank_extraction():
         return bank
 
 def bank_extraction_historical():
-    STATEMENT_DIR = r"..\pdf\estatement-historical"
+    STATEMENT_DIR = r"pdf\estatement-historical"
     
     # initialize
     bank_hist = pd.DataFrame()
@@ -219,7 +219,7 @@ def bank_extraction_historical():
     return bank_hist
 
 def cpf_extraction():
-    CPF_DIR = r"..\backend\pdf\cpf"
+    CPF_DIR = r"pdf\cpf"
 
     # check historical
     with open(os.path.join(os.path.split(CPF_DIR)[0],"historical-cpf.txt"),"r") as f:
@@ -297,7 +297,7 @@ def cpf_extraction():
 
 
 def cpf_extraction_historical():
-    CPF_DIR = r"..\pdf\cpf-historical"
+    CPF_DIR = r"pdf\cpf-historical"
 
     # read all historical cpf records
     cpf_2020 = tabula.read_pdf(os.path.join(CPF_DIR,"CPF Yearly Statement 2020.pdf"), stream=False, pages = "all")[0]
